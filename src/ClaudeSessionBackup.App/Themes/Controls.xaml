@@ -38,12 +38,50 @@
 
     <!-- ============================== surface ============================== -->
     <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PanelLineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16" />
         <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- ============================ glyph button ========================== -->
+    <!--
+        RULE: icon fonts (Segoe MDL2 Assets, Segoe Fluent Icons) must NEVER be
+        set on a Button, Border or any container that also carries a ToolTip.
+        Font properties inherit, so the ToolTip text renders in the glyph font
+        and shows as squares. Set the FontFamily only on the inner TextBlock
+        that displays the glyph. GlyphButtonStyle enforces this: the glyph
+        TextBlock lives inside a ContentTemplate, so the Button's own font
+        (inherited by the ToolTip) stays at the default UI family.
+    -->
+    <Style x:Key="GlyphButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <!-- Content is expected to be the glyph character;
+                             FontFamily goes here, never on the Button. -->
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ============================ status pill ============================ -->

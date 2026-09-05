@@ -1,10 +1,12 @@
 using System.Text;
+using System.Text.Json;
 using ClaudeSessionBackup.Core.Catalog;
 using ClaudeSessionBackup.Core.Config;
 using ClaudeSessionBackup.Core.Engine;
 using ClaudeSessionBackup.Core.Model;
 using ClaudeSessionBackup.Core.Rebuild;
 using ClaudeSessionBackup.Core.Scheduling;
+using ClaudeSessionBackup.Core.Transcripts;
 
 namespace ClaudeSessionBackup.Cli;
 
@@ -56,6 +58,24 @@ internal sealed record UninstallTaskCommand : CliCommand;
 internal sealed record TaskStatusCommand : CliCommand;
 
 internal sealed record HelpCommand : CliCommand;
+
+internal sealed record ExportCommand(
+    string? Session,
+    string? FilePath,
+    /// <summary>"backup" (default) or "live".</summary>
+    string Source,
+    string? Destination,
+    /// <summary>"md" (default) or "html".</summary>
+    string Format,
+    string? Out,
+    bool NoThinking,
+    bool NoTools,
+    bool NoResults,
+    bool NoSystem,
+    bool Attachments,
+    bool NoImages,
+    int MaxResultChars,
+    bool Quiet) : CliCommand;
 
 // Represents a parse error that should exit 3
 internal sealed record UsageErrorCommand(string Message) : CliCommand;
@@ -121,6 +141,7 @@ internal static class Program
             "verify"          => ParseBackup(rest, verify: true),
             "catalog"         => ParseCatalog(rest),
             "rebuild"         => ParseRebuild(rest),
+            "export"          => ParseExport(rest),
             "install-task"    => ParseInstallTask(rest),
             "uninstall-task"  => ParseUninstallTask(rest),
             "task-status"     => ParseTaskStatus(rest),
@@ -293,6 +314,78 @@ internal static class Program
         return new TaskStatusCommand();
     }
 
+    private static CliCommand ParseExport(string[] args)
+    {
+        string? session = null, filePath = null, destination = null, outPath = null;
+        string source = "backup", format = "md";
+        bool noThinking = false, noTools = false, noResults = false, noSystem = false;
+        bool attachments = false, noImages = false, quiet = false;
+        int maxResultChars = 4000;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--session":
+                    if (!TryNext(args, ref i, out var sess))
+                        return new UsageErrorCommand("--session requires a value.");
+                    session = sess;
+                    break;
+                case "--file":
+                    if (!TryNext(args, ref i, out var fp))
+                        return new UsageErrorCommand("--file requires a value.");
+                    filePath = fp;
+                    break;
+                case "--source":
+                    if (!TryNext(args, ref i, out var src))
+                        return new UsageErrorCommand("--source requires a value.");
+                    if (src is not ("backup" or "live"))
+                        return new UsageErrorCommand($"--source must be 'backup' or 'live', got '{src}'.");
+                    source = src;
+                    break;
+                case "--destination":
+                    if (!TryNext(args, ref i, out var dest))
+                        return new UsageErrorCommand("--destination requires a value.");
+                    destination = dest;
+                    break;
+                case "--format":
+                    if (!TryNext(args, ref i, out var fmt))
+                        return new UsageErrorCommand("--format requires a value.");
+                    if (fmt is not ("md" or "html"))
+                        return new UsageErrorCommand($"--format must be 'md' or 'html', got '{fmt}'.");
+                    format = fmt;
+                    break;
+                case "--out":
+                    if (!TryNext(args, ref i, out var op))
+                        return new UsageErrorCommand("--out requires a value.");
+                    outPath = op;
+                    break;
+                case "--no-thinking":     noThinking = true; break;
+                case "--no-tools":        noTools = true; break;
+                case "--no-results":      noResults = true; break;
+                case "--no-system":       noSystem = true; break;
+                case "--attachments":     attachments = true; break;
+                case "--no-images":       noImages = true; break;
+                case "--quiet":           quiet = true; break;
+                case "--max-result-chars":
+                    if (!TryNext(args, ref i, out var mrc) || !int.TryParse(mrc, out var n))
+                        return new UsageErrorCommand("--max-result-chars requires an integer.");
+                    maxResultChars = n;
+                    break;
+                default:
+                    return new UsageErrorCommand($"Unknown option: '{args[i]}'");
+            }
+        }
+
+        if (session is null && filePath is null)
+            return new UsageErrorCommand("export requires --session <id> or --file <path>.");
+        if (session is not null && filePath is not null)
+            return new UsageErrorCommand("export: --session and --file are mutually exclusive.");
+
+        return new ExportCommand(session, filePath, source, destination, format, outPath,
+            noThinking, noTools, noResults, noSystem, attachments, noImages, maxResultChars, quiet);
+    }
+
     private static bool TryNext(string[] args, ref int i, out string value)
     {
         if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
@@ -328,6 +421,9 @@ internal static class Program
 
             case CatalogCommand cc:
                 return await RunCatalogAsync(cc).ConfigureAwait(false);
+
+            case ExportCommand ec:
+                return await RunExportAsync(ec).ConfigureAwait(false);
 
             case RebuildCommand rc:
                 return RunRebuild(rc);
@@ -727,6 +823,221 @@ internal static class Program
     }
 
     // ---------------------------------------------------------------------------
+    // export
+    // ---------------------------------------------------------------------------
+
+    // Case-insensitive to match both Python (snake_case) and any future re-casing of the catalog.
+    private static readonly JsonSerializerOptions CatalogJson = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private static async Task<int> RunExportAsync(ExportCommand cmd)
+    {
+        var settings = SettingsStore.Load();
+        var destination = cmd.Destination ?? settings.Destination;
+
+        // ---------- resolve transcript path ----------
+        string transcriptPath;
+        string sessionId;
+
+        if (cmd.FilePath is not null)
+        {
+            // --file: direct path; session id is the file stem
+            transcriptPath = cmd.FilePath;
+            sessionId = Path.GetFileNameWithoutExtension(transcriptPath);
+        }
+        else
+        {
+            // --session: look up in <destination>\catalog\sessions_catalog.json
+            var catalogPath = Path.Combine(destination, "catalog", "sessions_catalog.json");
+            if (!File.Exists(catalogPath))
+            {
+                Console.Error.WriteLine(
+                    $"ERROR: catalog not found at '{catalogPath}'." +
+                    $" Run 'backup' or 'catalog' first to build it.");
+                return ExitUsage;
+            }
+
+            SessionCatalog catalog;
+            try
+            {
+                var json = await File.ReadAllTextAsync(catalogPath).ConfigureAwait(false);
+                catalog = JsonSerializer.Deserialize<SessionCatalog>(json, CatalogJson)
+                    ?? new SessionCatalog();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"ERROR: failed to read catalog: {ex.Message}");
+                return ExitUsage;
+            }
+
+            // Match by exact id first, then by prefix (case-insensitive)
+            var prefix = cmd.Session!;
+            var matches = catalog.Sessions
+                .Where(s => s.TranscriptRel is not null &&
+                            s.CliSessionId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (matches.Count == 0)
+            {
+                Console.Error.WriteLine(
+                    $"ERROR: no session with id or prefix '{prefix}' found in the catalog.");
+                return ExitUsage;
+            }
+
+            if (matches.Count > 1)
+            {
+                // Prefer an exact match if one exists; otherwise report ambiguity
+                var exact = matches.Where(
+                    s => s.CliSessionId.Equals(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (exact.Count == 1)
+                {
+                    matches = exact;
+                }
+                else
+                {
+                    Console.Error.WriteLine(
+                        $"ERROR: ambiguous session prefix '{prefix}' matches {matches.Count} sessions:");
+                    foreach (var m in matches.Take(10))
+                        Console.Error.WriteLine($"  {m.CliSessionId}  {m.Title}");
+                    if (matches.Count > 10)
+                        Console.Error.WriteLine($"  ... and {matches.Count - 10} more");
+                    return ExitUsage;
+                }
+            }
+
+            var entry = matches[0];
+            sessionId = entry.CliSessionId;
+            // transcript_rel uses forward slashes; convert to OS separator
+            var rel = entry.TranscriptRel!.Replace('/', Path.DirectorySeparatorChar);
+
+            var backupPath = Path.Combine(destination, "live", KnownStores.CodeTranscripts, rel);
+            var livePath   = Path.Combine(ClaudePaths.Projects, rel);
+
+            if (cmd.Source == "backup")
+            {
+                // Prefer backup; fall back to live when backup copy is absent
+                transcriptPath = File.Exists(backupPath) ? backupPath : livePath;
+                if (!File.Exists(transcriptPath))
+                {
+                    Console.Error.WriteLine(
+                        $"ERROR: transcript not found." +
+                        $"\n  backup: {backupPath}" +
+                        $"\n  live:   {livePath}");
+                    return ExitUsage;
+                }
+            }
+            else
+            {
+                // --source live: prefer live; fall back to backup
+                transcriptPath = File.Exists(livePath) ? livePath : backupPath;
+                if (!File.Exists(transcriptPath))
+                {
+                    Console.Error.WriteLine(
+                        $"ERROR: transcript not found." +
+                        $"\n  live:   {livePath}" +
+                        $"\n  backup: {backupPath}");
+                    return ExitUsage;
+                }
+            }
+        }
+
+        // ---------- output path ----------
+        var outPath = cmd.Out;
+        try
+        {
+            if (outPath is null)
+            {
+                var exportsDir = Path.Combine(destination, "exports");
+                Directory.CreateDirectory(exportsDir);
+                outPath = Path.Combine(exportsDir, $"{sessionId}.{cmd.Format}");
+            }
+            else
+            {
+                var outDir = Path.GetDirectoryName(outPath);
+                if (!string.IsNullOrEmpty(outDir))
+                    Directory.CreateDirectory(outDir);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"ERROR: cannot create output directory: {ex.Message}");
+            return ExitFailed;
+        }
+
+        // ---------- read transcript ----------
+        var readOptions = new TranscriptReadOptions
+        {
+            IncludeSystem      = !cmd.NoSystem,
+            IncludeAttachments = cmd.Attachments,
+            DecodeImages       = !cmd.NoImages,
+        };
+
+        var exportOptions = new ExportOptions
+        {
+            IncludeThinking    = !cmd.NoThinking,
+            IncludeToolCalls   = !cmd.NoTools,
+            IncludeToolResults = !cmd.NoResults,
+            IncludeSystem      = !cmd.NoSystem,
+            IncludeAttachments = cmd.Attachments,
+            EmbedImages        = !cmd.NoImages,
+            MaxToolResultChars = cmd.MaxResultChars,
+        };
+
+        if (!cmd.Quiet)
+            Console.WriteLine($"Reading {transcriptPath} ...");
+
+        var reader   = new TranscriptReader();
+        var exporter = new TranscriptExporter();
+
+        Transcript transcript;
+        try
+        {
+            transcript = await reader.ReadAsync(
+                transcriptPath, readOptions, recordsProgress: null, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (NotImplementedException nie)
+        {
+            Console.Error.WriteLine($"NOT IMPLEMENTED: {nie.Message}");
+            return ExitFailed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"ERROR reading transcript: {ex.Message}");
+            return ExitFailed;
+        }
+
+        // ---------- export ----------
+        try
+        {
+            if (cmd.Format == "html")
+                await exporter.ExportHtmlAsync(transcript, outPath, exportOptions, CancellationToken.None)
+                    .ConfigureAwait(false);
+            else
+                await exporter.ExportMarkdownAsync(transcript, outPath, exportOptions, CancellationToken.None)
+                    .ConfigureAwait(false);
+        }
+        catch (NotImplementedException nie)
+        {
+            Console.Error.WriteLine($"NOT IMPLEMENTED: {nie.Message}");
+            return ExitFailed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Console.Error.WriteLine($"ERROR writing export: {ex.Message}");
+            return ExitFailed;
+        }
+
+        if (!cmd.Quiet)
+            Console.WriteLine(
+                $"Exported to {outPath}  ({transcript.Turns.Count} turns, {transcript.Records} records)");
+
+        return ExitOk;
+    }
+
+    // ---------------------------------------------------------------------------
     // Help text
     // ---------------------------------------------------------------------------
 
@@ -744,6 +1055,22 @@ internal static class Program
                 --no-catalog           Skip catalog rebuild after backup
                 --keep-snapshots N     Move old zips to _to_delete after N (default 60)
                 --quiet                Suppress INFO lines; WARN/ERROR still go to stderr
+
+              export        Export one transcript as Markdown or HTML.
+                --session <id>         Session id or unique prefix (looks up in catalog)
+                --file <path.jsonl>    Read a transcript file directly (bypasses catalog)
+                --source backup|live   Which copy to read (default: backup, fallback to live)
+                --destination D        Backup root for catalog lookup and default output
+                --format md|html       Output format (default: md)
+                --out F                Output file (default: <destination>\exports\<id>.<fmt>)
+                --no-thinking          Omit thinking blocks
+                --no-tools             Omit tool-call blocks
+                --no-results           Omit tool-result blocks
+                --no-system            Omit system / compact-boundary blocks
+                --attachments          Include attachment records (off by default)
+                --no-images            Omit images (placeholder text instead)
+                --max-result-chars N   Truncate tool results at N chars (default 4000; 0=never)
+                --quiet                Suppress progress lines
 
               verify        Compare live stores with backup; report shrink / lost / dangling.
                 --destination D

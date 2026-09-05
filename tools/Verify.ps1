@@ -3,7 +3,7 @@
     Full verification gate for Claude Session Backup.
 
 .DESCRIPTION
-    Runs five checks:
+    Runs seven checks:
 
       1. BUILD        - 0 compiler errors, 0 warnings-as-errors (Release config).
       2. TESTS        - dotnet test (xunit). Tests that assert NotImplementedException
@@ -12,7 +12,7 @@
                         is a test bug vs an implementation bug.
       3. SMOKE        - runs the Release CLI against a throwaway destination:
                           verify, backup --no-snapshot, catalog --report, rebuild (dry)
-                        asserts exit 0/1, last_run.json present with 6 stores and
+                        asserts exit 0/1, last_run.json present with 13 stores and
                         code-transcripts > 0 files.
       4. THEME KEYS   - Semantic.Dark.xaml and Semantic.Light.xaml have identical
                         x:Key sets; every AppAccent*/Status*/Panel*/Log* key
@@ -20,6 +20,19 @@
       5. LAUNCH       - starts the WPF app exe and asserts a real HwndWrapper window
                         appears (not a dialog, not invisible). Adapted from Sync-ACC's
                         Verify.ps1 with the same EnumWindows / class-check pattern.
+      6. PACKAGING    - Check-Packaging.ps1 (static parse + splat check) PASSES;
+                        Package.ps1 -FrameworkDependent -NoZip succeeds and the staged
+                        folder contains both exes, LICENSE, README.md, and Install.cmd.
+                        Make-Installer.ps1 is invoked; if ISCC is absent the installer
+                        step is SKIPPED rather than failed. Both build into a temp
+                        folder (-OutDir) and never touch dist\, so a gate run cannot
+                        overwrite or delete the release artefacts kept there.
+      7. PRIVACY      - Check-Privacy.ps1 scans all tracked text files for the
+                        personal-identifier denylist (username, e-mail fragments,
+                        account UUIDs, absolute personal paths) and verifies that
+                        docs\screenshots\*.png files are not newer than the .demo
+                        marker (screenshots must come from demo mode). Use
+                        -SkipPrivacy in headless environments where git is absent.
 
     Gates 3 and 5 require a built Release binary. Run
         dotnet build ClaudeSessionBackup.slnx -c Release
@@ -37,15 +50,27 @@
 .PARAMETER SkipLaunch
     Skip gate 5. Use in headless / CI environments.
 
+.PARAMETER SkipPackaging
+    Skip gate 6. Use when the packaging scripts are not available or packaging
+    is handled by a separate release pipeline step.
+
+.PARAMETER SkipPrivacy
+    Skip gate 7. Use in headless / CI environments where git is not available
+    and a directory walk is undesirable.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\tools\Verify.ps1
     powershell -ExecutionPolicy Bypass -File .\tools\Verify.ps1 -SkipSmoke -SkipLaunch
+    powershell -ExecutionPolicy Bypass -File .\tools\Verify.ps1 -SkipPackaging
+    powershell -ExecutionPolicy Bypass -File .\tools\Verify.ps1 -SkipPrivacy
 #>
 [CmdletBinding()]
 param(
     [string] $Configuration = 'Release',
     [switch] $SkipSmoke,
-    [switch] $SkipLaunch
+    [switch] $SkipLaunch,
+    [switch] $SkipPackaging,
+    [switch] $SkipPrivacy
 )
 
 $ErrorActionPreference = 'Stop'
@@ -177,11 +202,11 @@ if ($SkipSmoke) {
         } else {
             $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             $storeCount = $manifest.stores.Count
-            if ($storeCount -ne 6) {
+            if ($storeCount -ne 13) {
                 $failed += 'smoke'
-                Fail "last_run.json has $storeCount stores, expected 6"
+                Fail "last_run.json has $storeCount stores, expected 13"
             } else {
-                Pass "last_run.json has 6 stores"
+                Pass "last_run.json has 13 stores"
             }
 
             # code-transcripts must have at least 1 file (live stores must exist)
@@ -276,6 +301,16 @@ if (-not (Test-Path $darkFile) -or -not (Test-Path $lightFile)) {
     }
     $referencedKeys = @($referencedKeys | Sort-Object -Unique)
 
+    # Keys defined in Themes\Controls.xaml are theme-independent (styles such as StatusPillStyle share
+    # the Status* prefix but are not brushes); they resolve in both themes by construction.
+    $controlsFile = Join-Path $repo 'src\ClaudeSessionBackup.App\Themes\Controls.xaml'
+    $sharedKeys = @()
+    if (Test-Path -LiteralPath $controlsFile) {
+        $sharedKeys = [System.Text.RegularExpressions.Regex]::Matches([System.IO.File]::ReadAllText($controlsFile), 'x:Key="([^"]+)"') |
+            ForEach-Object { $_.Groups[1].Value }
+    }
+    $referencedKeys = @($referencedKeys | Where-Object { $sharedKeys -notcontains $_ })
+
     $missingFromDark  = @($referencedKeys | Where-Object { -not $darkSet.Contains($_) })
     $missingFromLight = @($referencedKeys | Where-Object { -not $lightSet.Contains($_) })
     if ($missingFromDark.Count -gt 0) {
@@ -356,6 +391,134 @@ if ($SkipLaunch) {
 }
 
 # -----------------------------------------------------------------------
+# 6. PACKAGING
+# -----------------------------------------------------------------------
+Section 'PACKAGING'
+if ($SkipPackaging) {
+    Warn 'SKIPPED (-SkipPackaging)'
+} else {
+    $checkScript   = Join-Path $PSScriptRoot 'Check-Packaging.ps1'
+    $packageScript = Join-Path $PSScriptRoot 'Package.ps1'
+
+    # --- 6a: static analysis
+    if (-not (Test-Path $checkScript)) {
+        $failed += 'packaging'
+        Fail "Check-Packaging.ps1 not found at $checkScript"
+    } else {
+        & $checkScript
+        if ($LASTEXITCODE -ne 0) {
+            $failed += 'packaging'
+            Fail 'Check-Packaging.ps1 reported problems'
+        } else {
+            Pass 'Check-Packaging.ps1 passed'
+        }
+    }
+
+    # --- 6b: dry build (framework-dependent, no zip - fast gate)
+    if (-not (Test-Path $packageScript)) {
+        $failed += 'packaging'
+        Fail "Package.ps1 not found at $packageScript"
+    } else {
+        # Clean any previous gate-6 dist run so the presence check below is definitive.
+        $version  = ([xml](Get-Content (Join-Path $repo 'Directory.Build.props'))).Project.PropertyGroup.Version
+        if (-not $version) { $version = '1.0.0' }
+        # Build into a TEMP folder, never dist\. dist\ holds the release artefacts
+        # (self-contained zip + Setup.exe + SHA256SUMS.txt); an earlier version of
+        # this gate staged its framework-dependent build there, overwrote the
+        # Setup.exe and then deleted it - the installer vanished after every run.
+        $gateOut   = Join-Path $env:TEMP "csb-verify-$PID"
+        if (Test-Path $gateOut) { Remove-Item $gateOut -Recurse -Force -ErrorAction SilentlyContinue }
+        $gateStage = Join-Path $gateOut "Claude Session Backup $version"
+
+        # HASHTABLE splat - an array splat would bind positionally and fail at runtime.
+        # This is the exact pattern Check-Packaging.ps1 verifies statically.
+        $pkgArgs = @{
+            Configuration    = $Configuration
+            FrameworkDependent = $true
+            NoZip            = $true
+            OutDir           = $gateOut
+        }
+        # try/catch: a terminating error inside the script must fail THIS gate,
+        # not abort Verify before the temp cleanup and the privacy gate run.
+        try { & $packageScript @pkgArgs; $pkgExit = $LASTEXITCODE }
+        catch { $pkgExit = 1; Warn "Package.ps1 threw: $($_.Exception.Message)" }
+
+        if ($pkgExit -ne 0) {
+            $failed += 'packaging'
+            Fail "Package.ps1 -FrameworkDependent -NoZip failed (exit $pkgExit)"
+        } else {
+            Pass 'Package.ps1 -FrameworkDependent -NoZip succeeded'
+
+            # --- 6c: staged layout check
+            $stageApp = Join-Path $gateStage 'app'
+            $missingItems = @()
+            foreach ($name in @('ClaudeSessionBackup.exe', 'ClaudeSessionBackup.Cli.exe')) {
+                if (-not (Test-Path (Join-Path $stageApp $name))) { $missingItems += "app\$name" }
+            }
+            foreach ($name in @('LICENSE', 'README.md', 'Install.cmd')) {
+                if (-not (Test-Path (Join-Path $gateStage $name))) { $missingItems += $name }
+            }
+            if ($missingItems.Count -gt 0) {
+                $failed += 'packaging'
+                Fail "Staged layout missing: $($missingItems -join ', ')"
+            } else {
+                Pass "Staged layout complete (both exes, LICENSE, README.md, Install.cmd)"
+            }
+
+            # --- 6d: Make-Installer (SKIP if ISCC absent, not FAIL)
+            # Must run BEFORE the staged layout is cleaned up, because -SkipPackage
+            # expects the payload directory to already exist.
+            $makeScript = Join-Path $PSScriptRoot 'Make-Installer.ps1'
+            if (-not (Test-Path $makeScript)) {
+                Warn 'Make-Installer.ps1 not found - installer step skipped'
+            } else {
+                try { & $makeScript -SkipPackage -OutDir $gateOut 2>&1 | Out-Null; $makeExit = $LASTEXITCODE }
+                catch { $makeExit = 1; Warn "Make-Installer.ps1 threw: $($_.Exception.Message)" }
+                if ($makeExit -eq 2) {
+                    # Exit 2 = ISCC not installed. Treat as SKIP per the script's contract.
+                    Warn 'Make-Installer.ps1: ISCC not installed - installer step SKIPPED'
+                    Info "  Install Inno Setup with: winget install JRSoftware.InnoSetup"
+                } elseif ($makeExit -ne 0) {
+                    $failed += 'packaging'
+                    Fail "Make-Installer.ps1 failed (exit $makeExit)"
+                } else {
+                    Pass 'Make-Installer.ps1 succeeded'
+                }
+            }
+
+        }
+
+        # Remove the gate's temp build on BOTH paths. Package.ps1 creates the
+        # folder before it publishes, so a failed publish would otherwise leave
+        # %TEMP%\csb-verify-<pid> behind on every failing run (review finding,
+        # 2026-09-06). Nothing under dist\ is touched.
+        if (Test-Path $gateOut) { Remove-Item $gateOut -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# -----------------------------------------------------------------------
+# 7. PRIVACY
+# -----------------------------------------------------------------------
+Section 'PRIVACY'
+if ($SkipPrivacy) {
+    Warn 'SKIPPED (-SkipPrivacy)'
+} else {
+    $privacyScript = Join-Path $PSScriptRoot 'Check-Privacy.ps1'
+    if (-not (Test-Path $privacyScript)) {
+        $failed += 'privacy'
+        Fail "Check-Privacy.ps1 not found at $privacyScript"
+    } else {
+        & powershell -ExecutionPolicy Bypass -File $privacyScript
+        if ($LASTEXITCODE -ne 0) {
+            $failed += 'privacy'
+            Fail 'CHECK-PRIVACY FAILED'
+        } else {
+            Pass 'Check-Privacy.ps1 passed'
+        }
+    }
+}
+
+# -----------------------------------------------------------------------
 # VERDICT
 # -----------------------------------------------------------------------
 Write-Host ''
@@ -364,7 +527,7 @@ if ($failed.Count -eq 0) {
     Write-Host '  ALL SELECTED GATES PASSED' -ForegroundColor Green
     Write-Host '===================================================' -ForegroundColor Cyan
     Write-Host ''
-    Write-Host 'Not covered by any gate - only a live run reveals:' -ForegroundColor DarkGray
+    Write-Host 'Not covered by gates - only a live run or real release reveals:' -ForegroundColor DarkGray
     Write-Host '  Actual file copy correctness against live Claude stores.' -ForegroundColor DarkGray
     Write-Host '  Shrink-guard quarantine behaviour on real shrunken transcripts.' -ForegroundColor DarkGray
     Write-Host '  Snapshot creation and retention on a real destination.' -ForegroundColor DarkGray

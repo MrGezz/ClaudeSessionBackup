@@ -54,7 +54,7 @@ public sealed class ThemeManager
         // user's Windows personalisation colour happens to be.
         ApplicationThemeManager.Apply(
             dark ? ApplicationTheme.Dark : ApplicationTheme.Light,
-            WindowBackdropType.Mica,
+            WindowBackdropType.None,
             updateAccent: false);
 
         var merged = app.Resources.MergedDictionaries;

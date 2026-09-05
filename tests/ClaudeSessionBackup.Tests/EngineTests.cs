@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClaudeSessionBackup.Core.Catalog;
 using ClaudeSessionBackup.Core.Engine;
 using ClaudeSessionBackup.Core.Model;
@@ -705,13 +707,13 @@ public class EngineTests : IDisposable
     }
 
     [Fact]
-    public void Engine_SixStores_DefaultFactoryReturnsSix()
+    public void Engine_ThirteenStores_DefaultFactoryReturnsThirteen()
     {
-        // The default factory produces exactly 6 stores. This is a pure structural
-        // assertion that never reads live Claude paths.
+        // The default factory produces exactly 13 stores (9 original + 4 MSIX optional stores). This is a pure
+        // structural assertion that never reads live Claude paths.
         var dest = Path.Combine(_tmp, "dest");
         var opts = Options(dest);
-        Assert.Equal(6, KnownStores.Default(opts).Count);
+        Assert.Equal(13, KnownStores.Default(opts).Count);
     }
 
     [Fact]
@@ -995,5 +997,327 @@ public class EngineTests : IDisposable
             "A shrink-guard hold-back must produce warnings in the manifest (CLI exit code 1).");
         Assert.False(manifest.HasFailures,
             "A hold-back must not be counted as a failure (would be exit code 2, not 1).");
+    }
+
+    // -------------------------------------------------------------------------
+    // Optional stores
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Engine_OptionalAbsentStore_ReportsSourceMissingWithoutWarning()
+    {
+        // An Optional store whose source does not exist must report SourceMissing at INFO level,
+        // NOT as a warning. The run must have 0 warnings (no shrink guard, no wipe, no uncovered).
+        var dest = Path.Combine(_tmp, "dest");
+        var missingPath = Path.Combine(_tmp, "optional-does-not-exist");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("msix-test", missingPath) with { Optional = true } });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        var result = manifest.Stores.Single(s => s.Name == "msix-test");
+        Assert.Equal(StoreStatus.SourceMissing, result.Status);
+        Assert.False(manifest.HasWarnings,
+            "An absent optional store must not produce warnings (INFO only).");
+    }
+
+    [Fact]
+    public async Task Engine_OptionalPresentStore_CopiedNormally()
+    {
+        // An Optional store whose source EXISTS must be copied exactly like a non-optional store.
+        var dest = Path.Combine(_tmp, "dest");
+        var src = Path.Combine(_tmp, "opt-src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "record.json"), "{}");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("msix-present", src) with { Optional = true } });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        var result = manifest.Stores.Single(s => s.Name == "msix-present");
+        Assert.Equal(StoreStatus.Ok, result.Status);
+        Assert.True(result.Copied > 0, "An optional store that exists must be copied normally.");
+        Assert.True(File.Exists(Path.Combine(dest, "live", "msix-present", "record.json")),
+            "The file from the optional store must appear in the backup.");
+    }
+
+    [Fact]
+    public async Task Engine_NonOptionalMissingStore_ProducesWarning()
+    {
+        // A NON-optional store whose source is missing MUST produce a warning (the existing behaviour).
+        var dest = Path.Combine(_tmp, "dest");
+        var missingPath = Path.Combine(_tmp, "required-missing");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("required-store", missingPath) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.True(manifest.HasWarnings,
+            "A non-optional missing store must produce a warning.");
+    }
+
+    [Fact]
+    public void KnownStores_FourMsixStoresAreOptional()
+    {
+        // Structural: the four msix-* stores must all have Optional = true.
+        var stores = KnownStores.Default(new BackupOptions());
+        var msixNames = new[] { KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig };
+        foreach (var name in msixNames)
+        {
+            var store = stores.Single(s => s.Name == name);
+            Assert.True(store.Optional, $"{name} must be Optional = true");
+        }
+    }
+
+    [Fact]
+    public void KnownStores_NineOriginalStoresAreNotOptional()
+    {
+        // Structural: the nine non-msix stores must all have Optional = false (the default).
+        var stores = KnownStores.Default(new BackupOptions());
+        var msixNames = new HashSet<string> { KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig };
+        foreach (var store in stores.Where(s => !msixNames.Contains(s.Name)))
+        {
+            Assert.False(store.Optional, $"{store.Name} must NOT be Optional");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared destination: Machine on manifest
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Engine_Manifest_CarriesMachineName()
+    {
+        // RunManifest.Machine must equal Environment.MachineName after a run.
+        var dest = Path.Combine(_tmp, "dest");
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.Equal(Environment.MachineName, manifest.Machine);
+    }
+
+    [Fact]
+    public async Task Engine_Manifest_MachinePersistedInLastRunJson()
+    {
+        // The "machine" key must be present in the serialised last_run.json so a
+        // subsequent run from another machine can read it.
+        var dest = Path.Combine(_tmp, "dest");
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => Array.Empty<StoreDefinition>());
+
+        await engine.RunAsync(opts, null, CancellationToken.None);
+
+        var json = File.ReadAllText(opts.ManifestFile);
+        Assert.Contains("\"machine\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(Environment.MachineName, json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Engine_Ledger_ContainsMachineTag()
+    {
+        // The backup.log ledger line must contain " @<machine>".
+        var dest = Path.Combine(_tmp, "dest");
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => Array.Empty<StoreDefinition>());
+
+        await engine.RunAsync(opts, null, CancellationToken.None);
+
+        var ledger = File.ReadAllText(opts.LedgerFile);
+        Assert.Contains($"@{Environment.MachineName}", ledger);
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared destination: cross-machine warning
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Engine_SharedDestination_WarnsWhenPreviousMachineDiffers()
+    {
+        // When a previous last_run.json was written by a different machine, the engine
+        // must emit a WARN about the shared destination.
+        var dest = Path.Combine(_tmp, "dest");
+        Directory.CreateDirectory(dest);
+
+        // Seed a fake last_run.json from "OTHER-PC"
+        var fakeManifest = new RunManifest(
+            "20260101_000000", "backup", dest, false,
+            Array.Empty<StoreResult>(), null, null,
+            Array.Empty<string>(), 1.0, "fake.log")
+        { Machine = "OTHER-PC" };
+        var jsonOpts = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        };
+        File.WriteAllText(
+            Path.Combine(dest, "last_run.json"),
+            JsonSerializer.Serialize(fakeManifest, jsonOpts));
+
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.True(manifest.HasWarnings,
+            "A shared destination with a different previous machine must produce a warning.");
+        Assert.Contains(manifest.Warnings,
+            w => w.Contains("shared destination", StringComparison.OrdinalIgnoreCase)
+              && w.Contains("OTHER-PC", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Engine_SharedDestination_NoWarningWhenSameMachine()
+    {
+        // When the previous last_run.json was written by THIS machine, no shared-destination
+        // warning should fire.
+        var dest = Path.Combine(_tmp, "dest");
+        Directory.CreateDirectory(dest);
+
+        // Seed a fake last_run.json from THIS machine
+        var fakeManifest = new RunManifest(
+            "20260101_000000", "backup", dest, false,
+            Array.Empty<StoreResult>(), null, null,
+            Array.Empty<string>(), 1.0, "fake.log")
+        { Machine = Environment.MachineName };
+        var jsonOpts = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        };
+        File.WriteAllText(
+            Path.Combine(dest, "last_run.json"),
+            JsonSerializer.Serialize(fakeManifest, jsonOpts));
+
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.DoesNotContain(manifest.Warnings,
+            w => w.Contains("shared destination", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Engine_SharedDestination_NoWarningWhenNoLastRun()
+    {
+        // A fresh destination with no previous last_run.json must not produce any
+        // shared-destination warning.
+        var dest = Path.Combine(_tmp, "dest");
+        // dest does not exist yet - fresh destination
+
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.DoesNotContain(manifest.Warnings,
+            w => w.Contains("shared destination", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Engine_SharedDestination_CorruptLastRunDoesNotThrow()
+    {
+        // A corrupt last_run.json must not crash the engine - the shared-destination
+        // check tolerates it silently and the run proceeds.
+        var dest = Path.Combine(_tmp, "dest");
+        Directory.CreateDirectory(dest);
+
+        // Write garbage to last_run.json
+        File.WriteAllText(Path.Combine(dest, "last_run.json"), "NOT VALID JSON {{{");
+
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        // Must not throw
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        // The run must complete successfully (the corrupt file is simply ignored)
+        Assert.Equal(Environment.MachineName, manifest.Machine);
+        Assert.DoesNotContain(manifest.Warnings,
+            w => w.Contains("shared destination", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Engine_SharedDestination_LastRunWithoutMachineNoWarning()
+    {
+        // A last_run.json written by an older version without the Machine field must not
+        // produce a shared-destination warning (the field is null/absent).
+        var dest = Path.Combine(_tmp, "dest");
+        Directory.CreateDirectory(dest);
+
+        // Write a valid last_run.json WITHOUT the machine field (simulating an older version)
+        var oldJson = "{\"stamp\":\"20260101_000000\",\"mode\":\"backup\",\"destination\":\"" +
+                      dest.Replace("\\", "\\\\") +
+                      "\",\"includeSubagents\":false,\"stores\":[],\"warnings\":[],\"seconds\":1.0,\"logPath\":\"x.log\"}";
+        File.WriteAllText(Path.Combine(dest, "last_run.json"), oldJson);
+
+        var src = Path.Combine(_tmp, "src");
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "file.txt"), "x");
+
+        var opts = Options(dest);
+        var engine = new BackupEngine(
+            catalog: new StubCatalog(),
+            stores: _ => new[] { TreeStore("test", src) });
+
+        var manifest = await engine.RunAsync(opts, null, CancellationToken.None);
+
+        Assert.DoesNotContain(manifest.Warnings,
+            w => w.Contains("shared destination", StringComparison.OrdinalIgnoreCase));
     }
 }

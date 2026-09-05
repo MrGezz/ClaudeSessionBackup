@@ -12,7 +12,8 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  Background="{DynamicResource WindowBrush}">
         <StackPanel>
             <TextBlock Text="Restore" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
@@ -83,6 +84,21 @@
                             <DataGridTextColumn Header="Project" Binding="{Binding ProjectDir}" Width="140" />
                             <DataGridTextColumn Header="Size"
                                 Binding="{Binding Size, Converter={StaticResource BytesToHumanConverter}}" Width="80" />
+                            <DataGridTemplateColumn Header="" Width="50">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Open" FontSize="11"
+                                                Padding="4,1" Background="Transparent" BorderThickness="0"
+                                                Foreground="{DynamicResource AppAccentBrush}"
+                                                ToolTip="Open transcript viewer"
+                                                Command="{Binding DataContext.OpenTranscriptCommand,
+                                                    RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding TranscriptRel,
+                                                    Converter={StaticResource StringToVisibilityConverter}}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </StackPanel>
@@ -112,6 +128,21 @@
                             <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
                             <DataGridTextColumn Header="Project" Binding="{Binding ProjectDir}" Width="140" />
                             <DataGridTextColumn Header="Sidebar ID" Binding="{Binding IndexSessionId}" Width="160" />
+                            <DataGridTemplateColumn Header="" Width="50">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Open" FontSize="11"
+                                                Padding="4,1" Background="Transparent" BorderThickness="0"
+                                                Foreground="{DynamicResource AppAccentBrush}"
+                                                ToolTip="Open transcript viewer"
+                                                Command="{Binding DataContext.OpenTranscriptCommand,
+                                                    RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding TranscriptRel,
+                                                    Converter={StaticResource StringToVisibilityConverter}}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </StackPanel>

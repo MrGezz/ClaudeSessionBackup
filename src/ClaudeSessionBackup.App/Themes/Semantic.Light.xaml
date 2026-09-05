@@ -6,20 +6,20 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <SolidColorBrush x:Key="AppAccentBrush"      Color="#FF0097A7" />
-    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF00ACC1" />
+    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF00838F" />
     <SolidColorBrush x:Key="AppAccentSoftBrush"  Color="#1A0097A7" />
 
     <SolidColorBrush x:Key="StatusOkBrush"       Color="#FF2E7D32" />
     <SolidColorBrush x:Key="StatusOkFill"        Color="#1A2E7D32" />
     <SolidColorBrush x:Key="StatusOkLine"        Color="#732E7D32" />
 
-    <SolidColorBrush x:Key="StatusWarnBrush"     Color="#FFB26A00" />
-    <SolidColorBrush x:Key="StatusWarnFill"      Color="#1AB26A00" />
-    <SolidColorBrush x:Key="StatusWarnLine"      Color="#73B26A00" />
+    <SolidColorBrush x:Key="StatusWarnBrush"     Color="#FFF57F17" />
+    <SolidColorBrush x:Key="StatusWarnFill"      Color="#1AF57F17" />
+    <SolidColorBrush x:Key="StatusWarnLine"      Color="#73F57F17" />
 
-    <SolidColorBrush x:Key="StatusDangerBrush"   Color="#FFC62828" />
-    <SolidColorBrush x:Key="StatusDangerFill"    Color="#1AC62828" />
-    <SolidColorBrush x:Key="StatusDangerLine"    Color="#73C62828" />
+    <SolidColorBrush x:Key="StatusDangerBrush"   Color="#FFD32F2F" />
+    <SolidColorBrush x:Key="StatusDangerFill"    Color="#1AD32F2F" />
+    <SolidColorBrush x:Key="StatusDangerLine"    Color="#73D32F2F" />
 
     <SolidColorBrush x:Key="StatusVioletBrush"   Color="#FF5E35B1" />
     <SolidColorBrush x:Key="StatusVioletFill"    Color="#1A5E35B1" />
@@ -29,8 +29,17 @@
     <SolidColorBrush x:Key="StatusMutedFill"     Color="#1A546E7A" />
     <SolidColorBrush x:Key="StatusMutedLine"     Color="#73546E7A" />
 
-    <SolidColorBrush x:Key="PanelBrush"          Color="#FFF3F7F9" />
-    <SolidColorBrush x:Key="PanelLineBrush"      Color="#FFD5DEE3" />
-    <SolidColorBrush x:Key="LogBackgroundBrush"  Color="#FFEEF3F5" />
+    <SolidColorBrush x:Key="WindowBrush"         Color="#FFECEFF1" />
+    <SolidColorBrush x:Key="NavBrush"            Color="#FFE7EDF0" />
+    <SolidColorBrush x:Key="CardBrush"           Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="PanelBrush"          Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="PanelBrush2"         Color="#FFE7EDF0" />
+    <SolidColorBrush x:Key="PanelLineBrush"      Color="#FFCFD8DC" />
+
+    <SolidColorBrush x:Key="LogBackgroundBrush"  Color="#FFF4F7F9" />
     <SolidColorBrush x:Key="LogForegroundBrush"  Color="#FF2B3E46" />
+
+    <SolidColorBrush x:Key="TextMainBrush"       Color="#FF263238" />
+    <SolidColorBrush x:Key="TextSecondaryBrush"  Color="#FF546E7A" />
+    <SolidColorBrush x:Key="TextTertiaryBrush"   Color="#FF607D8B" />
 </ResourceDictionary>

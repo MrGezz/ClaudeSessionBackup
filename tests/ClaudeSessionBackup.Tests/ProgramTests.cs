@@ -187,4 +187,129 @@ public class ProgramTests
             try { Directory.Delete(dest, recursive: true); } catch { }
         }
     }
+
+    // -------------------------------------------------------------------------
+    // export command - parse errors (exit 3)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Export_NoSessionOrFile_ExitsUsage()
+    {
+        // export without --session or --file must exit 3.
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var code = await RunCliAsync(exe, "export");
+        Assert.Equal(3, code); // ExitUsage = 3
+    }
+
+    [Fact]
+    public async Task Export_BothSessionAndFile_ExitsUsage()
+    {
+        // --session and --file are mutually exclusive; both together must exit 3.
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var code = await RunCliAsync(exe, "export",
+            "--session", "abc123",
+            "--file", "some.jsonl");
+        Assert.Equal(3, code); // ExitUsage = 3
+    }
+
+    [Fact]
+    public async Task Export_InvalidFormat_ExitsUsage()
+    {
+        // --format must be 'md' or 'html'; anything else exits 3.
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var code = await RunCliAsync(exe, "export",
+            "--file", "some.jsonl",
+            "--format", "pdf");
+        Assert.Equal(3, code); // ExitUsage = 3
+    }
+
+    [Fact]
+    public async Task Export_InvalidSource_ExitsUsage()
+    {
+        // --source must be 'backup' or 'live'; anything else exits 3.
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var code = await RunCliAsync(exe, "export",
+            "--file", "some.jsonl",
+            "--source", "cloud");
+        Assert.Equal(3, code); // ExitUsage = 3
+    }
+
+    [Fact]
+    public async Task Export_SessionNoCatalog_ExitsUsage()
+    {
+        // --session with a --destination that has no catalog must exit 3.
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var dest = Path.Combine(Path.GetTempPath(), "csb_exp_nocat_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dest);
+            // No catalog subdirectory → "catalog not found" → exit 3
+            var code = await RunCliAsync(exe, "export",
+                "--session", "abc123",
+                "--destination", dest);
+            Assert.Equal(3, code); // ExitUsage = 3
+        }
+        finally
+        {
+            try { Directory.Delete(dest, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Export_FileNotFound_ExitsFailed()
+    {
+        // --file pointing at a file that does not exist: the TranscriptReader stub throws
+        // NotImplementedException, which the CLI catches and returns exit 2.
+        // (If the reader were real it would throw FileNotFoundException → exit 2 also.)
+        var exe = FindCliExe();
+        if (exe is null)
+        {
+            Assert.True(exe is not null, "ClaudeSessionBackup.Cli.exe not found. Build the solution first.");
+            return;
+        }
+
+        var dest = Path.Combine(Path.GetTempPath(), "csb_exp_out_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dest);
+            var code = await RunCliAsync(exe, "export",
+                "--file", Path.Combine(dest, "nonexistent.jsonl"),
+                "--destination", dest);
+            Assert.Equal(2, code); // ExitFailed = 2 (stub NotImplementedException)
+        }
+        finally
+        {
+            try { Directory.Delete(dest, recursive: true); } catch { }
+        }
+    }
 }

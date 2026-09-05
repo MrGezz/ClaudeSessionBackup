@@ -10,6 +10,25 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!--
+      For the notification-area icon only. WPF-UI 4.x dropped the tray controls
+      that 3.x had, and System.Windows.Forms.NotifyIcon is already part of the
+      Windows Desktop runtime this app requires - so it costs a reference, not a
+      dependency. The alternative was ~150 lines of Shell_NotifyIcon P/Invoke,
+      taskbar-restart handling included, to reimplement a component that ships
+      in the box.
+    -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!--
+      WFAC010 tells WinForms apps to move DPI awareness out of app.manifest and
+      into ApplicationHighDpiMode. That advice does not apply here: this is a WPF
+      app that references WinForms for one non-visual component (NotifyIcon), and
+      WPF reads DPI awareness from the manifest at process start - there is no
+      ApplicationConfiguration.Initialize() call to honour the property. Taking
+      the advice would break DPI scaling to silence a warning about a UI stack
+      the app never renders with. Suppressed narrowly, not via a blanket NoWarn.
+    -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <AssemblyName>ClaudeSessionBackup</AssemblyName>
     <RootNamespace>ClaudeSessionBackup.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -20,9 +39,25 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      UseWindowsForms adds System.Windows.Forms to this project's IMPLICIT
+      usings, which then collides with WPF on Application, MessageBox, Clipboard,
+      Cursor, Point and more - every one of them a compile error in files that
+      have nothing to do with the tray. Drop the implicit using and fully qualify
+      the handful of types that actually need it, in MainWindow.xaml.cs alone.
+    -->
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- WPF-UI 4.3.0, pinned: Themes/Charcoal.xaml restates its brush keys and
          those names are version-sensitive (see Sync-ACC's notes). -->
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+
+    <!-- Markdown parser for the Transcript page. Parsing only: the AST is rendered to a WPF
+         FlowDocument by Services\MarkdownRenderer.cs, so the app stays native (no WebView2 -
+         a browser engine plus a runtime dependency to draw what WPF can draw and theme itself). -->
+    <PackageReference Include="Markdig" Version="1.3.2" />
   </ItemGroup>
 
   <ItemGroup>

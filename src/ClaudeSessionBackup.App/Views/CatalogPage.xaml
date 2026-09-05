@@ -12,7 +12,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource WindowBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -39,6 +39,7 @@
 
         <!-- Session grid -->
         <DataGrid Grid.Row="2"
+                  x:Name="CatalogGrid"
                   ItemsSource="{Binding CatalogSessions}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
@@ -48,10 +49,12 @@
                   Background="Transparent"
                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                   RowBackground="Transparent"
-                  AlternatingRowBackground="{DynamicResource ControlFillColorDefaultBrush}"
+                  AlternatingRowBackground="{DynamicResource PanelBrush2}"
+                  HorizontalGridLinesBrush="{DynamicResource PanelLineBrush}"
                   CanUserResizeRows="False"
                   VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto">
+                  HorizontalScrollBarVisibility="Auto"
+                  MouseDoubleClick="CatalogGrid_MouseDoubleClick">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Last Activity" Width="130"
                     Binding="{Binding LastMs, Converter={StaticResource EpochMsToDateConverter}}" />
@@ -70,17 +73,38 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
+                <DataGridTemplateColumn Header="" Width="50">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Open" FontSize="11"
+                                        Padding="4,1" Background="Transparent" BorderThickness="0"
+                                        ToolTip="Open transcript viewer"
+                                        Foreground="{DynamicResource AppAccentBrush}"
+                                        Command="{Binding DataContext.OpenTranscriptCommand,
+                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"
+                                        Visibility="{Binding TranscriptRel,
+                                            Converter={StaticResource StringToVisibilityConverter}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="" Width="30">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="&#xE838;" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                    Padding="2" Background="Transparent" BorderThickness="0"
+                            <!-- Icon font on the inner TextBlock only: setting it on the
+                                 Button makes the ToolTip inherit the glyph font and render
+                                 as squares. -->
+                            <Button Padding="2" Background="Transparent" BorderThickness="0"
                                     ToolTip="Open transcript folder"
                                     Command="{Binding DataContext.OpenTranscriptFolderCommand,
                                         RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
                                     Visibility="{Binding TranscriptRel,
-                                        Converter={StaticResource StringToVisibilityConverter}}" />
+                                        Converter={StaticResource StringToVisibilityConverter}}">
+                                <TextBlock Text="&#xE838;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

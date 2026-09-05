@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Build
+        run: dotnet build ClaudeSessionBackup.slnx -c Release
+
+      - name: Test
+        run: dotnet test ClaudeSessionBackup.slnx -c Release --no-build
+
+      - name: Check packaging scripts
+        run: pwsh -File tools\Check-Packaging.ps1
+
+      - name: Check privacy
+        run: pwsh -File tools\Check-Privacy.ps1

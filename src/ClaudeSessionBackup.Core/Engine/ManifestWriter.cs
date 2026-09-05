@@ -35,8 +35,9 @@ internal static class ManifestWriter
         var snapshotNote = manifest.SnapshotPath != null
             ? $", snapshot {Path.GetFileName(manifest.SnapshotPath)}"
             : "";
+        var machineTag = manifest.Machine != null ? $" @{manifest.Machine}" : "";
         var ledger = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {manifest.Mode,-6} {manifest.Stores.Count} stores, " +
-                     $"{manifest.Warnings.Count} warnings, {manifest.Seconds:N0}s{snapshotNote}";
+                     $"{manifest.Warnings.Count} warnings, {manifest.Seconds:N0}s{snapshotNote}{machineTag}";
 
         File.AppendAllText(options.LedgerFile, ledger + Environment.NewLine);
     }

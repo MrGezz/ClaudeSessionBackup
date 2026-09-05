@@ -6,10 +6,10 @@ namespace ClaudeSessionBackup.Tests;
 public class SkeletonTests
 {
     [Fact]
-    public void KnownStores_DefineSixStores_WithSecretsExcluded()
+    public void KnownStores_DefineThirteenStores_WithSecretsExcluded()
     {
         var stores = KnownStores.Default(new BackupOptions());
-        Assert.Equal(6, stores.Count);
+        Assert.Equal(13, stores.Count);
         var config = stores.Single(s => s.Name == KnownStores.CodeConfig);
         Assert.Contains(".credentials.json", config.ExcludeFiles);
         Assert.Contains(".claude.json", config.ExcludeFiles);

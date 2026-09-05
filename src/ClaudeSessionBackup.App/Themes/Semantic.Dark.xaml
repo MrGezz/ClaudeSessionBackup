@@ -11,7 +11,7 @@
 
     <!-- accent: rest / hover / 10% soft fill -->
     <SolidColorBrush x:Key="AppAccentBrush"      Color="#FF00BCD4" />
-    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF26C6DA" />
+    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF4DD0E1" />
     <SolidColorBrush x:Key="AppAccentSoftBrush"  Color="#1A00BCD4" />
 
     <!-- status tones: ink / 10% fill / 45% edge -->
@@ -35,9 +35,20 @@
     <SolidColorBrush x:Key="StatusMutedFill"     Color="#1A5F7885" />
     <SolidColorBrush x:Key="StatusMutedLine"     Color="#735F7885" />
 
-    <!-- chrome -->
-    <SolidColorBrush x:Key="PanelBrush"          Color="#FF1B2A30" />
-    <SolidColorBrush x:Key="PanelLineBrush"      Color="#FF2B3E46" />
-    <SolidColorBrush x:Key="LogBackgroundBrush"  Color="#FF121C20" />
+    <!-- surface hierarchy: window > nav > card > panel > panel2 -->
+    <SolidColorBrush x:Key="WindowBrush"         Color="#FF0B1013" />
+    <SolidColorBrush x:Key="NavBrush"            Color="#FF0F161A" />
+    <SolidColorBrush x:Key="CardBrush"           Color="#FF141E24" />
+    <SolidColorBrush x:Key="PanelBrush"          Color="#FF152026" />
+    <SolidColorBrush x:Key="PanelBrush2"         Color="#FF1C2B33" />
+    <SolidColorBrush x:Key="PanelLineBrush"      Color="#FF283B45" />
+
+    <!-- code / log surface -->
+    <SolidColorBrush x:Key="LogBackgroundBrush"  Color="#FF0F171C" />
     <SolidColorBrush x:Key="LogForegroundBrush"  Color="#FFB0C4CE" />
+
+    <!-- text hierarchy -->
+    <SolidColorBrush x:Key="TextMainBrush"       Color="#FFECF4F7" />
+    <SolidColorBrush x:Key="TextSecondaryBrush"  Color="#FF8FA6B2" />
+    <SolidColorBrush x:Key="TextTertiaryBrush"   Color="#FF5F7885" />
 </ResourceDictionary>

@@ -10,7 +10,7 @@
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
-        WindowBackdropType="Mica"
+        WindowBackdropType="None"
         Icon="pack://application:,,,/Assets/app.ico"
         Background="{DynamicResource ApplicationBackgroundBrush}"
         Closing="OnClosing">
@@ -65,7 +65,7 @@
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Root" Property="Background"
-                                            Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                            Value="{DynamicResource PanelBrush}" />
                                 </Trigger>
                                 <MultiTrigger>
                                     <MultiTrigger.Conditions>
@@ -83,7 +83,7 @@
         </ResourceDictionary>
     </ui:FluentWindow.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource WindowBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -92,13 +92,25 @@
 
         <!-- ======================== title bar ============================== -->
         <ui:TitleBar Grid.Row="0" Title="Claude Session Backup"
-                     ShowMaximize="True" ShowMinimize="True">
+                     ShowMaximize="True" ShowMinimize="True"
+                     Background="{DynamicResource NavBrush}">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" Width="16" Height="16" />
             </ui:TitleBar.Icon>
 
             <ui:TitleBar.Header>
                 <StackPanel Orientation="Horizontal">
+                    <!-- DEMO badge: visible only in demo mode -->
+                    <Border CornerRadius="4" Padding="8,2" Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource StatusWarnFill}"
+                            BorderBrush="{DynamicResource StatusWarnLine}"
+                            BorderThickness="1"
+                            Visibility="{Binding IsDemo,
+                                Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="DEMO" FontSize="11" FontWeight="Bold"
+                                   Foreground="{DynamicResource StatusWarnBrush}" />
+                    </Border>
                     <Button Command="{Binding ToggleThemeCommand}"
                             Background="Transparent" BorderThickness="0"
                             ToolTip="Toggle light / dark theme"
@@ -131,9 +143,9 @@
 
             <!-- ==================== left nav rail ========================== -->
             <Border Grid.Column="0"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderBrush="{DynamicResource PanelLineBrush}"
                     BorderThickness="0,0,1,0"
-                    Background="{DynamicResource ApplicationBackgroundBrush}">
+                    Background="{DynamicResource NavBrush}">
                 <StackPanel Margin="0,8,0,0">
 
                     <RadioButton GroupName="Nav"
@@ -221,11 +233,30 @@
                         </StackPanel>
                     </RadioButton>
 
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Transcript}"
+                                 IsEnabled="{Binding IsTranscriptLoaded}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8A1;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Transcript"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
                 </StackPanel>
             </Border>
 
             <!-- ==================== content host =========================== -->
-            <Grid Grid.Column="1" Margin="24,16,24,16">
+            <Grid Grid.Column="1" Margin="24,16,24,16"
+                  Background="{DynamicResource WindowBrush}">
                 <local:DashboardPage>
                     <local:DashboardPage.Style>
                         <Style TargetType="local:DashboardPage">
@@ -290,14 +321,27 @@
                         </Style>
                     </local:SettingsPage.Style>
                 </local:SettingsPage>
+
+                <local:TranscriptPage>
+                    <local:TranscriptPage.Style>
+                        <Style TargetType="local:TranscriptPage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Transcript">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:TranscriptPage.Style>
+                </local:TranscriptPage>
             </Grid>
         </Grid>
 
         <!-- ======================== status strip =========================== -->
         <Border Grid.Row="2"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{DynamicResource PanelLineBrush}"
                 BorderThickness="0,1,0,0"
-                Background="{DynamicResource ApplicationBackgroundBrush}"
+                Background="{DynamicResource NavBrush}"
                 Padding="16,6">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -332,7 +376,7 @@
                 <Border Grid.Column="1"
                         Width="1" Height="14"
                         Margin="12,0,12,0"
-                        Background="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Background="{DynamicResource PanelLineBrush}"
                         VerticalAlignment="Center" />
 
                 <TextBlock Grid.Column="2"

@@ -11,10 +11,11 @@ using ClaudeSessionBackup.Core.Engine;
 using ClaudeSessionBackup.Core.Model;
 using ClaudeSessionBackup.Core.Rebuild;
 using ClaudeSessionBackup.Core.Scheduling;
+using ClaudeSessionBackup.Core.Transcripts;
 
 namespace ClaudeSessionBackup.App.ViewModels;
 
-public enum AppPage { Dashboard, Catalog, Restore, Schedule, Settings }
+public enum AppPage { Dashboard, Catalog, Restore, Schedule, Settings, Transcript }
 
 /// <summary>
 /// The root view model. Owns the settings, the engine instances, and the
@@ -34,6 +35,7 @@ public sealed class MainViewModel : ViewModelBase
 
     // -------------------------------------------------------------- settings
     private AppSettings _settings;
+    private TraySettings _traySettings;
 
     // --------------------------------------------------------------- paging
     private AppPage _currentPage = AppPage.Dashboard;
@@ -79,11 +81,12 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Log lines from the current or last run, shown in the Dashboard log pane.</summary>
     public ObservableCollection<string> LogLines { get; } = new();
 
-    /// <summary>Store results from the last run manifest, shown in the Dashboard table.</summary>
-    public ObservableCollection<StoreResult> StoreResults { get; } = new();
-
-    /// <summary>Known stores with their descriptions, for the static table.</summary>
-    public ObservableCollection<StoreDefinition> StoreDefs { get; } = new();
+    /// <summary>
+    /// Dashboard table rows: one per known store, updated in place from run manifests.
+    /// Replaces the earlier StoreDefs (static) + StoreResults (raw) pair so the grid
+    /// can show live/backup counts and a status pill without a second collection.
+    /// </summary>
+    public ObservableCollection<StoreRowViewModel> StoreRows { get; } = new();
 
     private string _lastRunSummary = "";
     public string LastRunSummary
@@ -98,6 +101,25 @@ public sealed class MainViewModel : ViewModelBase
         get => _scheduledTaskStatus;
         set => Set(ref _scheduledTaskStatus, value);
     }
+
+    // ----------------------------------------------- store discovery warning
+    private string _uncoveredDataText = "";
+    /// <summary>
+    /// Non-empty when the last run found Claude data roots not covered by any store.
+    /// Shown as a WARN-tone card on the Dashboard.
+    /// </summary>
+    public string UncoveredDataText
+    {
+        get => _uncoveredDataText;
+        set
+        {
+            if (Set(ref _uncoveredDataText, value))
+                OnPropertyChanged(nameof(HasUncoveredData));
+        }
+    }
+
+    /// <summary>True when <see cref="UncoveredDataText"/> is non-empty.</summary>
+    public bool HasUncoveredData => !string.IsNullOrEmpty(_uncoveredDataText);
 
     public ICommand BackupCommand { get; }
     public ICommand VerifyCommand { get; }
@@ -125,6 +147,17 @@ public sealed class MainViewModel : ViewModelBase
 
     public ICommand RefreshCatalogCommand { get; }
     public ICommand OpenTranscriptFolderCommand { get; }
+    public ICommand OpenTranscriptCommand { get; }
+
+    // ------------------------------------------------------------ transcript
+    public TranscriptViewModel TranscriptVM { get; }
+
+    private bool _isTranscriptLoaded;
+    public bool IsTranscriptLoaded
+    {
+        get => _isTranscriptLoaded;
+        set => Set(ref _isTranscriptLoaded, value);
+    }
 
     // --------------------------------------------------------------- restore
     public ObservableCollection<SessionEntry> LostSessions { get; } = new();
@@ -183,6 +216,10 @@ public sealed class MainViewModel : ViewModelBase
             {
                 _settings.Destination = value;
                 OnPropertyChanged();
+
+                // Destination changed: previous run data no longer applies.
+                foreach (var row in StoreRows) row.Reset();
+                LastRunSummary = "";
             }
         }
     }
@@ -213,16 +250,55 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public bool MinimizeToTray
+    {
+        get => _traySettings.MinimizeToTray;
+        set
+        {
+            if (_traySettings.MinimizeToTray != value)
+            {
+                _traySettings.MinimizeToTray = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool CloseToTray
+    {
+        get => _traySettings.CloseToTray;
+        set
+        {
+            if (_traySettings.CloseToTray != value)
+            {
+                _traySettings.CloseToTray = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public ICommand BrowseDestinationCommand { get; }
     public ICommand SaveSettingsCommand { get; }
 
+    // ---------------------------------------------------------------- demo
+
+    /// <summary>
+    /// True when started with <c>--demo</c>. Every piece of data on screen is
+    /// fictional; nothing under %APPDATA% is read or written.
+    /// </summary>
+    public bool IsDemo { get; }
+
+    /// <summary>Window title: includes "DEMO" when in demo mode.</summary>
+    public string WindowTitle => IsDemo ? "Claude Session Backup  -  DEMO" : "Claude Session Backup";
+
     // ----------------------------------------------------------------- ctor
 
-    public MainViewModel(AppSettings settings, ThemeManager theme)
+    public MainViewModel(AppSettings settings, TraySettings traySettings, ThemeManager theme, bool isDemo = false)
     {
         _settings = settings;
+        _traySettings = traySettings;
         _theme = theme;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        IsDemo = isDemo;
 
         // Core services - stubs throw NotImplementedException, which is fine:
         // the UI renders and navigates without touching the engine.
@@ -241,33 +317,93 @@ public sealed class MainViewModel : ViewModelBase
             OnPropertyChanged(nameof(IsDark));
         });
 
-        BackupCommand = new AsyncRelayCommand(RunBackupAsync, () => !IsRunning);
-        VerifyCommand = new AsyncRelayCommand(RunVerifyAsync, () => !IsRunning);
+        // In demo mode: Backup/Verify/Apply/Install are disabled; the data is pre-populated.
+        BackupCommand = new AsyncRelayCommand(RunBackupAsync, () => !IsRunning && !IsDemo);
+        VerifyCommand = new AsyncRelayCommand(RunVerifyAsync, () => !IsRunning && !IsDemo);
         CancelCommand = new RelayCommand(CancelRun, () => IsRunning);
 
         RefreshCatalogCommand = new AsyncRelayCommand(RefreshCatalogAsync);
         OpenTranscriptFolderCommand = new RelayCommand(OpenTranscriptFolder);
 
-        PlanRebuildCommand = new AsyncRelayCommand(PlanRebuildAsync);
-        ApplyRebuildCommand = new AsyncRelayCommand(ApplyRebuildAsync);
+        // Transcript viewer: uses the Core reader/exporter stubs (another agent fills them).
+        var transcriptReader = new TranscriptReader() as ITranscriptReader;
+        var transcriptExporter = new TranscriptExporter() as ITranscriptExporter;
+        var markdownRenderer = new MarkdownRenderer();
+        TranscriptVM = new TranscriptViewModel(transcriptReader, transcriptExporter, markdownRenderer, settings);
+        TranscriptVM.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TranscriptViewModel.IsLoaded))
+            {
+                IsTranscriptLoaded = TranscriptVM.IsLoaded;
+            }
+        };
+        OpenTranscriptCommand = new AsyncRelayCommand(OpenTranscriptAsync);
 
-        InstallTaskCommand = new RelayCommand(InstallTask);
-        UninstallTaskCommand = new RelayCommand(UninstallTask);
+        PlanRebuildCommand = new AsyncRelayCommand(PlanRebuildAsync);
+        ApplyRebuildCommand = new AsyncRelayCommand(ApplyRebuildAsync, () => !IsDemo);
+
+        InstallTaskCommand = new RelayCommand(InstallTask, () => !IsDemo);
+        UninstallTaskCommand = new RelayCommand(UninstallTask, () => !IsDemo);
         RefreshTaskStatusCommand = new RelayCommand(RefreshTaskStatus);
 
         BrowseDestinationCommand = new RelayCommand(BrowseDestination);
-        SaveSettingsCommand = new RelayCommand(SaveSettings);
+        SaveSettingsCommand = new RelayCommand(SaveSettings, () => !IsDemo);
 
-        // Populate the static store definitions table
-        var defaultOpts = _settings.ToBackupOptions();
-        foreach (var store in KnownStores.Default(defaultOpts))
+        // Build one StoreRowViewModel per known store. The row stays in place;
+        // ApplyManifest updates its live/backup/status properties.
+        RebuildStoreRows();
+
+        if (isDemo)
         {
-            StoreDefs.Add(store);
+            PopulateDemo();
+        }
+        else
+        {
+            // Load last-run summary (and apply manifest to rows) and task status
+            LoadLastRunSummary();
+            RefreshTaskStatus();
+        }
+    }
+
+    // --------------------------------------------------------- demo population
+
+    /// <summary>
+    /// Fill every page with fictional data from <see cref="DemoDataSource"/>.
+    /// Nothing real is read; no files are touched.
+    /// </summary>
+    private void PopulateDemo()
+    {
+        // Dashboard: manifest -> store rows, log lines, summary
+        var manifest = DemoDataSource.BuildManifest();
+        ApplyManifest(manifest);
+        LastRunSummary = DemoDataSource.LastRunSummary;
+        foreach (var line in DemoDataSource.LogLines)
+            LogLines.Add(line);
+        StatusText = "Completed (8.4s)";
+
+        // Catalog
+        _allSessions = DemoDataSource.CatalogSessions();
+        ApplyCatalogFilter();
+
+        // Restore: pick up LOST and DANGLING from the same list
+        foreach (var s in _allSessions)
+        {
+            if (s.IsLost) LostSessions.Add(s);
+            else if (s.IsDangling) DanglingSessions.Add(s);
         }
 
-        // Load last-run summary and scheduled-task status
-        LoadLastRunSummary();
-        RefreshTaskStatus();
+        // Rebuild plan
+        RebuildPlan = DemoDataSource.BuildRebuildPlan();
+        RebuildStatus = $"Plan: {RebuildPlan.ToWrite.Count} records to write, {RebuildPlan.Skipped.Count} skipped";
+
+        // Transcript: load the demo transcript directly into TranscriptVM
+        var demoTranscript = DemoDataSource.BuildTranscript();
+        TranscriptVM.LoadDemoTranscript(demoTranscript);
+        IsTranscriptLoaded = true;
+
+        // Schedule
+        TaskStatus = "Not installed";
+        ScheduledTaskStatus = "No scheduled task";
     }
 
     // -------------------------------------------------------------- dashboard
@@ -287,7 +423,6 @@ public sealed class MainViewModel : ViewModelBase
         IsRunning = true;
         StatusText = verify ? "Verifying..." : "Backing up...";
         LogLines.Clear();
-        StoreResults.Clear();
         _runCts = new CancellationTokenSource();
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -318,19 +453,13 @@ public sealed class MainViewModel : ViewModelBase
                 () => _engine.RunAsync(options, progress, _runCts.Token),
                 _runCts.Token).ConfigureAwait(true);
 
-            foreach (var sr in manifest.Stores)
-            {
-                StoreResults.Add(sr);
-            }
+            ApplyManifest(manifest);
 
             StatusText = manifest.HasFailures
                 ? $"Completed with failures ({manifest.Seconds:N1}s)"
                 : $"Completed ({manifest.Seconds:N1}s)";
 
-            LastRunSummary = $"Last run: {manifest.Stamp} - {manifest.Mode} - " +
-                $"{manifest.Stores.Sum(s => s.Copied)} copied, " +
-                $"{manifest.Stores.Sum(s => s.Failed)} failed, " +
-                $"{manifest.Warnings.Count} warnings";
+            LastRunSummary = FormatLastRunSummary(manifest);
         }
         catch (NotImplementedException)
         {
@@ -367,6 +496,48 @@ public sealed class MainViewModel : ViewModelBase
         StatusText = "Cancelling...";
     }
 
+    /// <summary>
+    /// (Re)build <see cref="StoreRows"/> from the current settings. Called once at
+    /// construction and never again unless the store list itself could change (it
+    /// cannot today, but the include-subagents toggle changes the definition list).
+    /// </summary>
+    private void RebuildStoreRows()
+    {
+        StoreRows.Clear();
+        var opts = _settings.ToBackupOptions();
+        foreach (var def in KnownStores.Default(opts))
+        {
+            StoreRows.Add(new StoreRowViewModel(def));
+        }
+    }
+
+    /// <summary>
+    /// Push per-store results from a <see cref="RunManifest"/> into the
+    /// matching <see cref="StoreRows"/> entries. Backup vs verify is inferred
+    /// from the manifest's Mode field.
+    /// </summary>
+    private void ApplyManifest(RunManifest manifest)
+    {
+        var wasVerify = string.Equals(manifest.Mode, "verify", StringComparison.OrdinalIgnoreCase);
+        foreach (var sr in manifest.Stores)
+        {
+            var row = StoreRows.FirstOrDefault(r =>
+                string.Equals(r.Name, sr.Name, StringComparison.OrdinalIgnoreCase));
+            row?.ApplyResult(sr, wasVerify);
+        }
+
+        // Update store-discovery warning card
+        if (manifest.Discovered is { Count: > 0 } disc)
+        {
+            var paths = string.Join("\n  ", disc.Select(d => d.Path));
+            UncoveredDataText = $"Uncovered Claude data: {disc.Count} location(s)\n  {paths}";
+        }
+        else
+        {
+            UncoveredDataText = "";
+        }
+    }
+
     private void LoadLastRunSummary()
     {
         try
@@ -383,15 +554,8 @@ public sealed class MainViewModel : ViewModelBase
                 var manifest = JsonSerializer.Deserialize<RunManifest>(json, readOpts);
                 if (manifest is not null)
                 {
-                    LastRunSummary = $"Last run: {manifest.Stamp} - {manifest.Mode} - " +
-                        $"{manifest.Stores.Sum(s => s.Copied)} copied, " +
-                        $"{manifest.Stores.Sum(s => s.Failed)} failed, " +
-                        $"{manifest.Warnings.Count} warnings ({manifest.Seconds:N1}s)";
-
-                    foreach (var sr in manifest.Stores)
-                    {
-                        StoreResults.Add(sr);
-                    }
+                    LastRunSummary = FormatLastRunSummary(manifest);
+                    ApplyManifest(manifest);
                 }
             }
         }
@@ -400,6 +564,22 @@ public sealed class MainViewModel : ViewModelBase
             // Never let a corrupt manifest prevent startup.
             LastRunSummary = "(no previous run data)";
         }
+    }
+
+    /// <summary>
+    /// Format the last-run summary text shown on the Dashboard.
+    /// Includes the machine name when available so the user can tell which machine
+    /// produced the manifest (relevant when a destination is shared).
+    /// </summary>
+    private static string FormatLastRunSummary(RunManifest manifest)
+    {
+        var machineText = !string.IsNullOrEmpty(manifest.Machine)
+            ? $" on {manifest.Machine}"
+            : "";
+        return $"Last run: {manifest.Stamp}{machineText} - {manifest.Mode} - " +
+            $"{manifest.Stores.Sum(s => s.Copied)} copied, " +
+            $"{manifest.Stores.Sum(s => s.Failed)} failed, " +
+            $"{manifest.Warnings.Count} warnings";
     }
 
     // ---------------------------------------------------------------- catalog
@@ -512,6 +692,19 @@ public sealed class MainViewModel : ViewModelBase
         {
             System.Diagnostics.Process.Start("explorer.exe", folder);
         }
+    }
+
+    // ------------------------------------------------------------ transcript
+
+    private async Task OpenTranscriptAsync(object? param)
+    {
+        if (param is not SessionEntry session || session.TranscriptRel is null)
+        {
+            return;
+        }
+
+        await TranscriptVM.LoadTranscriptAsync(session).ConfigureAwait(true);
+        CurrentPage = AppPage.Transcript;
     }
 
     // --------------------------------------------------------------- restore
@@ -715,12 +908,21 @@ public sealed class MainViewModel : ViewModelBase
 
     private void SaveSettings()
     {
+        if (IsDemo)
+        {
+            StatusText = "Demo mode: settings not saved";
+            return;
+        }
+
         _settings.TaskTime = TaskTime;
         _settings.TaskAtLogon = TaskAtLogon;
+        // MinimizeToTray and CloseToTray are already written through to _traySettings
+        // by their property setters, so no explicit copy is needed here.
 
         try
         {
             SettingsStore.Save(_settings);
+            TraySettingsStore.Save(_traySettings);
             StatusText = "Settings saved";
         }
         catch (Exception ex)

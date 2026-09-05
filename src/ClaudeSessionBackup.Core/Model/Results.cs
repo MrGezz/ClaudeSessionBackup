@@ -56,6 +56,15 @@ public sealed partial record RunManifest(
 {
     /// <summary>True when the run was refused because the lock was held.</summary>
     public bool IsRefused { get; init; }
+
+    /// <summary>
+    /// The NetBIOS machine name that produced this manifest (<see cref="Environment.MachineName"/>).
+    /// Persisted in last_run.json so a shared destination can detect when two machines write
+    /// the same folder and warn that each machine should use its own destination.
+    /// No user name is stored (privacy).
+    /// </summary>
+    public string? Machine { get; init; }
+
     public bool HasFailures => Stores.Any(s => s.Status is StoreStatus.Failed or StoreStatus.Error);
     public bool HasWarnings => Warnings.Count > 0;
 }

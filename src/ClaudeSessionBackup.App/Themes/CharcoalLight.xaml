@@ -298,7 +298,7 @@
     <SolidColorBrush x:Key="TextFillColorLightTertiaryBrush" Color="#87FFFFFF" />
     <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#FF263238" />
     <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#FF546E7A" />
-    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#FF78909C" />
+    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#FF607D8B" />
     <SolidColorBrush x:Key="TextPlaceholderColorBrush" Color="#9E000000" />
     <SolidColorBrush x:Key="TimePickerButtonBackground" Color="#4DF7F9FA" />
     <SolidColorBrush x:Key="TimePickerButtonBackgroundDisabled" Color="#4DF7F9FA" />

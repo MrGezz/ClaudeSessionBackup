@@ -1,0 +1,554 @@
+<UserControl x:Class="ClaudeSessionBackup.App.Views.TranscriptPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+             xmlns:vm="clr-namespace:ClaudeSessionBackup.App.ViewModels"
+             xmlns:local="clr-namespace:ClaudeSessionBackup.App.Views">
+    <!-- DataContext intentionally NOT set here: the Style DataTrigger in MainWindow.xaml
+         binds to {Binding CurrentPage} which lives on MainViewModel, the inherited DataContext.
+         Setting DataContext on the UserControl would shadow it. The inner Grid below binds
+         its DataContext to TranscriptVM so all content bindings address TranscriptViewModel. -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- ================== block data templates =================== -->
+
+            <!-- Text block: rendered Markdown via FlowDocument -->
+            <DataTemplate x:Key="TextBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <FlowDocumentScrollViewer Document="{Binding FlowDocument, Mode=OneTime}"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Margin="0,0,0,2"
+                                          IsToolBarVisible="False"
+                                          Focusable="False">
+                    <FlowDocumentScrollViewer.Style>
+                        <Style TargetType="FlowDocumentScrollViewer">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="MaxHeight" Value="3000" />
+                        </Style>
+                    </FlowDocumentScrollViewer.Style>
+                </FlowDocumentScrollViewer>
+            </DataTemplate>
+
+            <!-- Thinking block -->
+            <DataTemplate x:Key="ThinkingBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Expander IsExpanded="{Binding IsExpanded}"
+                          Margin="0,4,0,4"
+                          Visibility="{Binding IsBlockVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Expander.Header>
+                        <TextBlock Text="Thinking" FontStyle="Italic" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource StatusVioletBrush}" />
+                    </Expander.Header>
+                    <Border Background="{DynamicResource StatusVioletFill}"
+                            CornerRadius="4" Padding="12,8" Margin="0,4,0,0">
+                        <TextBlock FontStyle="Italic" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding Text}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ThinkingRedacted}" Value="True">
+                                            <Setter Property="Text" Value="thinking not stored (signature only)" />
+                                            <Setter Property="Foreground" Value="{DynamicResource StatusMutedBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                </Expander>
+            </DataTemplate>
+
+            <!-- Tool call -->
+            <DataTemplate x:Key="ToolUseBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Expander IsExpanded="{Binding IsExpanded}"
+                          Margin="0,2,0,2"
+                          Visibility="{Binding IsBlockVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8FC;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                       Foreground="{DynamicResource AppAccentBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock FontWeight="Bold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center">
+                                <Run Text="{Binding ToolName, Mode=OneTime}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Background="{DynamicResource PanelBrush}"
+                            BorderBrush="{DynamicResource PanelLineBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4" Padding="10,6" Margin="0,4,0,0">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled">
+                            <TextBlock Text="{Binding InputJson, Mode=OneTime}"
+                                       FontFamily="Cascadia Mono, Consolas, monospace"
+                                       FontSize="12" TextWrapping="NoWrap"
+                                       Foreground="{DynamicResource LogForegroundBrush}" />
+                        </ScrollViewer>
+                    </Border>
+                </Expander>
+            </DataTemplate>
+
+            <!-- Tool result -->
+            <DataTemplate x:Key="ToolResultBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Expander IsExpanded="{Binding IsExpanded}"
+                          Margin="0,2,0,2">
+                    <Expander.Header>
+                        <TextBlock VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Result" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                                            <Setter Property="Text" Value="Result (error)" />
+                                            <Setter Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Expander.Header>
+                    <Border CornerRadius="4" Padding="10,6" Margin="0,4,0,0"
+                            BorderBrush="{DynamicResource PanelLineBrush}"
+                            BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <TextBlock FontFamily="Cascadia Mono, Consolas, monospace"
+                                           FontSize="12" TextWrapping="NoWrap"
+                                           Foreground="{DynamicResource LogForegroundBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{Binding ToolResultCapped, Mode=OneTime}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowAllToolResult}" Value="True">
+                                                    <Setter Property="Text" Value="{Binding ToolResultFull, Mode=OneTime}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </ScrollViewer>
+                            <!-- Show all / Show less toggle for capped tool results -->
+                            <TextBlock Margin="0,4,0,0" FontSize="11"
+                                       Cursor="Hand" MouseLeftButtonDown="ToggleToolResult_Click">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+                                        <Setter Property="Text" Value="Show all" />
+                                        <Setter Property="Visibility" Value="{Binding IsToolResultCapped, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowAllToolResult}" Value="True">
+                                                <Setter Property="Text" Value="Show less" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Expander>
+            </DataTemplate>
+
+            <!-- Image -->
+            <DataTemplate x:Key="ImageBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Border Margin="0,4,0,4">
+                    <StackPanel>
+                        <Image Source="{Binding Image, Mode=OneTime}"
+                               MaxWidth="800" MaxHeight="600"
+                               HorizontalAlignment="Left"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasImageBytes}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                        <TextBlock Foreground="{DynamicResource StatusMutedBrush}"
+                                   FontStyle="Italic" FontSize="11" Margin="0,2,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasImageBytes}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Text">
+                                                <Setter.Value>
+                                                    <Binding Path="ImageByteLength" StringFormat="(image, {0:N0} bytes - not decoded)" />
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- System note -->
+            <DataTemplate x:Key="SystemNoteBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Border Background="{DynamicResource PanelBrush2}"
+                        CornerRadius="4" Padding="10,6" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" FontSize="11"
+                                   Foreground="{DynamicResource StatusMutedBrush}" Margin="0,0,0,4">
+                            <Run Text="{Binding Subtype, Mode=OneTime}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Text, Mode=OneTime}"
+                                   TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- Compact boundary -->
+            <DataTemplate x:Key="CompactBoundaryBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Border Margin="0,8,0,8" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Border Height="1" Width="60"
+                                Background="{DynamicResource TextTertiaryBrush}"
+                                VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="context compacted"
+                                   FontSize="11" FontStyle="Italic"
+                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                        <Border Height="1" Width="60"
+                                Background="{DynamicResource TextTertiaryBrush}"
+                                VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- Attachment -->
+            <DataTemplate x:Key="AttachmentBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
+                <Border Background="{DynamicResource PanelBrush2}"
+                        CornerRadius="4" Padding="10,6" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" FontSize="11"
+                                   Foreground="{DynamicResource StatusMutedBrush}" Margin="0,0,0,4">
+                            <Run Text="attachment: " /><Run Text="{Binding Subtype, Mode=OneTime}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Text, Mode=OneTime}"
+                                   TextWrapping="Wrap" FontSize="12"
+                                   FontFamily="Cascadia Mono, Consolas, monospace"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid DataContext="{Binding TranscriptVM}"
+          Background="{DynamicResource WindowBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ==================== header ==================== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,8"
+                    Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding Title}"
+                           Style="{StaticResource SectionHeaderStyle}" TextTrimming="CharacterEllipsis" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <RadioButton Content="Backup" Margin="0,0,4,0"
+                                 IsChecked="{Binding UseBackupSource}"
+                                 IsEnabled="{Binding BackupExists}" />
+                    <RadioButton Content="Live"
+                                 IsChecked="{Binding UseBackupSource, Converter={StaticResource InverseBooleanConverter}}"
+                                 IsEnabled="{Binding LiveExists}" />
+                </StackPanel>
+            </Grid>
+
+            <WrapPanel Margin="0,0,0,4">
+                <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,16,0">
+                    <Run Text="Project: " FontWeight="SemiBold" />
+                    <Run Text="{Binding Project, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,16,0">
+                    <Run Text="{Binding DateRange, Mode=OneWay}" />
+                </TextBlock>
+            </WrapPanel>
+
+            <TextBlock Text="{Binding Stats}" FontSize="12"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,0,0,2" />
+
+            <TextBlock Text="{Binding SourcePath}" FontSize="11"
+                       FontFamily="Cascadia Mono, Consolas, monospace"
+                       Foreground="{DynamicResource StatusMutedBrush}"
+                       TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <!-- ==================== toolbar ==================== -->
+        <Border Grid.Row="1"
+                Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVisibilityConverter}}"
+                Background="{DynamicResource PanelBrush}"
+                CornerRadius="6" Padding="8,4" Margin="0,0,0,8">
+            <WrapPanel>
+                <!-- Toggles -->
+                <CheckBox Content="Thinking" IsChecked="{Binding ShowThinking}" Margin="0,0,10,0" />
+                <CheckBox Content="Tool calls" IsChecked="{Binding ShowToolCalls}" Margin="0,0,10,0" />
+                <CheckBox Content="Tool results" IsChecked="{Binding ShowToolResults}" Margin="0,0,10,0" />
+                <CheckBox Content="System" IsChecked="{Binding ShowSystem}" Margin="0,0,10,0" />
+                <CheckBox Content="Attachments" IsChecked="{Binding ShowAttachments}" Margin="0,0,16,0" />
+
+                <Border Width="1" Height="18"
+                        Background="{DynamicResource PanelLineBrush}"
+                        VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                <!-- Search -->
+                <TextBox Width="160"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center" Margin="0,0,4,0" />
+                <!-- Icon font on the inner TextBlock only: setting it on the
+                     Button makes the ToolTip inherit the glyph font and render
+                     as squares. -->
+                <Button Padding="4,2" Background="Transparent" BorderThickness="0"
+                        Command="{Binding SearchPrevCommand}" ToolTip="Previous"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="&#xE80A;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                </Button>
+                <Button Padding="4,2" Background="Transparent" BorderThickness="0"
+                        Command="{Binding SearchNextCommand}" ToolTip="Next"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="&#xE80B;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                </Button>
+                <TextBlock Text="{Binding SearchResultText}" FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center" Margin="6,0,12,0" />
+
+                <Border Width="1" Height="18"
+                        Background="{DynamicResource PanelLineBrush}"
+                        VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                <!-- Jump to turn -->
+                <TextBlock Text="Turn:" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Margin="0,0,4,0" />
+                <TextBox Width="50"
+                         Text="{Binding JumpTurnNumber, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center" Margin="0,0,4,0" />
+                <Button Content="Go" Padding="6,2" FontSize="11"
+                        Command="{Binding JumpToTurnCommand}" VerticalAlignment="Center"
+                        Margin="0,0,12,0" />
+
+                <Border Width="1" Height="18"
+                        Background="{DynamicResource PanelLineBrush}"
+                        VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                <!-- Export -->
+                <Button Content="Copy MD" Padding="6,2" FontSize="11"
+                        Command="{Binding CopyMarkdownCommand}" VerticalAlignment="Center"
+                        Margin="0,0,4,0" ToolTip="Copy as Markdown to clipboard" />
+                <Button Content="Export .md" Padding="6,2" FontSize="11"
+                        Command="{Binding ExportMarkdownCommand}" VerticalAlignment="Center"
+                        Margin="0,0,4,0" />
+                <Button Content="Export .html" Padding="6,2" FontSize="11"
+                        Command="{Binding ExportHtmlCommand}" VerticalAlignment="Center" />
+            </WrapPanel>
+        </Border>
+
+        <!-- ==================== loading / error ==================== -->
+        <StackPanel Grid.Row="2">
+            <!-- Loading indicator -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                <ui:ProgressRing Width="20" Height="20" IsIndeterminate="True" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding LoadStatus}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Action feedback (Copy / Export status) - visible when not loading and LoadStatus is non-empty -->
+            <TextBlock Text="{Binding LoadStatus}" FontSize="12"
+                       Foreground="{DynamicResource AppAccentBrush}"
+                       Margin="0,0,0,4">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="{Binding LoadStatus, Converter={StaticResource StringToVisibilityConverter}}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Error -->
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="{DynamicResource StatusDangerBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,8"
+                       Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}" />
+
+            <!-- Empty state -->
+            <TextBlock Text="Select a session from the Catalog or Restore page to view its transcript."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       FontStyle="Italic" Margin="0,20,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLoaded}" Value="False" />
+                                    <Condition Binding="{Binding IsLoading}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- ==================== transcript turn list ==================== -->
+        <ListBox x:Name="TurnList"
+                 Grid.Row="3"
+                 ItemsSource="{Binding VisibleTurns}"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingStackPanel.IsVirtualizing="True"
+                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                 VirtualizingStackPanel.ScrollUnit="Pixel"
+                 SelectionMode="Single"
+                 Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,0,0,4" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:TurnViewModel}">
+                    <Border Margin="0,0,0,2" Padding="12,8" CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <!-- User turns -->
+                                    <DataTrigger Binding="{Binding Role}" Value="User">
+                                        <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+                                        <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                    </DataTrigger>
+                                    <!-- Assistant turns -->
+                                    <DataTrigger Binding="{Binding Role}" Value="Assistant">
+                                        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource PanelLineBrush}" />
+                                        <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                    </DataTrigger>
+                                    <!-- System turns -->
+                                    <DataTrigger Binding="{Binding Role}" Value="System">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                    </DataTrigger>
+                                    <!-- Search highlight -->
+                                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource StatusWarnBrush}" />
+                                        <Setter Property="BorderThickness" Value="2" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <StackPanel>
+                            <!-- Turn header -->
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <Run Text="#" /><Run Text="{Binding Index, Mode=OneTime}" />
+                                </TextBlock>
+                                <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           Margin="8,0,0,0"
+                                           Text="{Binding RoleLabel, Mode=OneTime}" />
+                                <TextBlock Grid.Column="2" FontSize="11"
+                                           Foreground="{DynamicResource StatusMutedBrush}"
+                                           Margin="8,0,0,0" VerticalAlignment="Center"
+                                           Text="{Binding Model, Mode=OneTime}" />
+                                <TextBlock Grid.Column="3" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="{Binding TimestampDisplay, Mode=OneTime}" />
+                            </Grid>
+
+                            <!-- Blocks -->
+                            <ItemsControl ItemsSource="{Binding Blocks}">
+                                <ItemsControl.ItemTemplateSelector>
+                                    <local:BlockTemplateSelector
+                                        TextTemplate="{StaticResource TextBlockTemplate}"
+                                        ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
+                                        ToolUseTemplate="{StaticResource ToolUseBlockTemplate}"
+                                        ToolResultTemplate="{StaticResource ToolResultBlockTemplate}"
+                                        ImageTemplate="{StaticResource ImageBlockTemplate}"
+                                        SystemNoteTemplate="{StaticResource SystemNoteBlockTemplate}"
+                                        CompactBoundaryTemplate="{StaticResource CompactBoundaryBlockTemplate}"
+                                        AttachmentTemplate="{StaticResource AttachmentBlockTemplate}" />
+                                </ItemsControl.ItemTemplateSelector>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>

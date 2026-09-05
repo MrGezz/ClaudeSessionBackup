@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClaudeSessionBackup.Core.Model;
 
 namespace ClaudeSessionBackup.Core.Engine;
@@ -35,13 +37,26 @@ public sealed partial class BackupEngine : IBackupEngine
 {
     private readonly Catalog.ICatalogBuilder _catalog;
     private readonly Func<BackupOptions, IReadOnlyList<StoreDefinition>> _stores;
+    private readonly Func<IReadOnlyList<StoreDefinition>, IReadOnlyList<DiscoveredRoot>> _discovery;
 
     /// <param name="catalog">Catalog builder; default <see cref="Catalog.CatalogBuilder"/>.</param>
     /// <param name="stores">Store factory; default <see cref="KnownStores.Default"/>. Tests inject stores rooted in temp folders.</param>
-    public BackupEngine(Catalog.ICatalogBuilder? catalog = null, Func<BackupOptions, IReadOnlyList<StoreDefinition>>? stores = null)
+    /// <param name="discovery">
+    /// Store discovery (the sweep of THIS machine for Claude data outside the covered stores). Defaults to
+    /// <see cref="StoreDiscovery.Discover(IReadOnlyList{StoreDefinition})"/> when the default stores are used,
+    /// and to a no-op when a store factory is injected: a machine sweep compared against temp-tree stores
+    /// would only produce nonsense warnings, and would make every engine test walk the real %LOCALAPPDATA%.
+    /// </param>
+    public BackupEngine(
+        Catalog.ICatalogBuilder? catalog = null,
+        Func<BackupOptions, IReadOnlyList<StoreDefinition>>? stores = null,
+        Func<IReadOnlyList<StoreDefinition>, IReadOnlyList<DiscoveredRoot>>? discovery = null)
     {
         _catalog = catalog ?? new Catalog.CatalogBuilder();
         _stores = stores ?? KnownStores.Default;
+        _discovery = discovery ?? (stores is null
+            ? StoreDiscovery.Discover
+            : static _ => Array.Empty<DiscoveredRoot>());
     }
 
     public async Task<RunManifest> RunAsync(BackupOptions options, IProgress<LogLine>? progress, CancellationToken cancellationToken)
@@ -69,7 +84,7 @@ public sealed partial class BackupEngine : IBackupEngine
                 Array.Empty<StoreResult>(), null, null,
                 new[] { $"another run appears active (lock {options.LockFile} is fresh) - exiting" },
                 started.Elapsed.TotalSeconds, logFile)
-            { IsRefused = true };
+            { IsRefused = true, Machine = Environment.MachineName };
         }
 
         log.Log($"=== Backup-ClaudeSessions {mode.ToUpperInvariant()} {stamp} ===");
@@ -88,6 +103,17 @@ public sealed partial class BackupEngine : IBackupEngine
             results.Add(result);
         }
 
+        // Store discovery: warn about Claude data roots that the backup does not cover.
+        // Runs in both backup and verify modes, before the catalog, so the user learns
+        // about uncovered data even if the catalog step is skipped.
+        var discovered = _discovery(stores);
+        foreach (var root in discovered)
+        {
+            var size = Formatting.FormatBytes(root.Bytes);
+            log.Log($"UNCOVERED: {root.Path} - {root.Reason} ({root.Files} files, {size}) - " +
+                    "not backed up; add a store or tell the author", LogLevel.Warn);
+        }
+
         // Catalog: unless NoCatalog, build from the LIVE sources
         string? catalogPath = null;
         if (!options.NoCatalog)
@@ -104,13 +130,20 @@ public sealed partial class BackupEngine : IBackupEngine
                 SnapshotBuilder.ApplyRetention(options, progress);
         }
 
+        // Shared-destination detection: read the previous last_run.json (if any) and warn
+        // when the previous run came from a different machine. Two machines writing the same
+        // destination stomp each other's last_run.json, backup.log, and catalog.
+        var thisMachine = Environment.MachineName;
+        DetectSharedDestination(options, thisMachine, log);
+
         started.Stop();
         var seconds = Math.Round(started.Elapsed.TotalSeconds, 1);
 
         var manifest = new RunManifest(
             stamp, mode, options.Destination, options.IncludeSubagents,
             results, catalogPath, snapshotPath,
-            log.Warnings.ToList(), seconds, logFile);
+            log.Warnings.ToList(), seconds, logFile)
+        { Discovered = discovered, Machine = thisMachine };
 
         // Write manifest (last_run.json) and ledger (backup.log)
         ManifestWriter.Write(options, manifest);
@@ -144,7 +177,16 @@ public sealed partial class BackupEngine : IBackupEngine
         // Source missing?
         if (!Directory.Exists(store.Source))
         {
-            log.Log($"{store.Name}: source missing ({store.Source}) - skipped; backup copy untouched", LogLevel.Warn);
+            if (store.Optional)
+            {
+                // Optional stores whose source does not exist are expected (e.g. the MSIX
+                // container's Roaming\Claude comes and goes). INFO, not a warning.
+                log.Log($"{store.Name}: optional source absent ({store.Source}) - nothing to copy");
+            }
+            else
+            {
+                log.Log($"{store.Name}: source missing ({store.Source}) - skipped; backup copy untouched", LogLevel.Warn);
+            }
             return new StoreResult(store.Name, StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0, null);
         }
 
@@ -296,6 +338,40 @@ public sealed partial class BackupEngine : IBackupEngine
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Read the previous last_run.json and warn if it was written by a different machine.
+    /// Tolerates absence, corruption, and missing fields: a bad file must never prevent a run.
+    /// </summary>
+    private static void DetectSharedDestination(BackupOptions options, string thisMachine, RunLogWriter log)
+    {
+        try
+        {
+            if (!File.Exists(options.ManifestFile)) return;
+
+            var json = File.ReadAllText(options.ManifestFile);
+            var readOpts = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+            };
+            var prev = JsonSerializer.Deserialize<RunManifest>(json, readOpts);
+            if (prev?.Machine is null || string.IsNullOrEmpty(prev.Machine)) return;
+
+            if (!string.Equals(prev.Machine, thisMachine, StringComparison.OrdinalIgnoreCase))
+            {
+                log.Log(
+                    $"shared destination: the previous run here was from {prev.Machine} - " +
+                    "last_run.json, backup.log and the catalog now describe THIS machine; " +
+                    $"use one destination per machine (e.g. {options.Destination}\\{thisMachine}) to keep them apart",
+                    LogLevel.Warn);
+            }
+        }
+        catch
+        {
+            // A corrupt or unreadable last_run.json must never prevent the run.
+        }
     }
 
     private static string FormatBytes(long n) => Formatting.FormatBytes(n);

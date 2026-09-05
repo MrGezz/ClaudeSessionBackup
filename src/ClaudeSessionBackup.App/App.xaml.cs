@@ -61,15 +61,29 @@ public partial class App : Application
     /// <summary>Faults that arrived while a dialog was already up.</summary>
     private static int _suppressedErrors;
 
+    /// <summary>
+    /// True when the process was started with <c>--demo</c>. The app runs on
+    /// entirely fictional data: no settings are loaded or saved, no real stores
+    /// are touched, and every string visible on screen is invented.
+    /// </summary>
+    internal static bool IsDemo { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        _instanceMutex = new Mutex(initiallyOwned: true, "Local\\ClaudeSessionBackup.App.SingleInstance", out var isFirst);
+        IsDemo = e.Args.Any(a => a.Equals("--demo", StringComparison.OrdinalIgnoreCase));
+
+        // Demo mode uses a separate mutex name so it can coexist with the real app.
+        var mutexName = IsDemo
+            ? "Local\\ClaudeSessionBackup.App.Demo"
+            : "Local\\ClaudeSessionBackup.App.SingleInstance";
+
+        _instanceMutex = new Mutex(initiallyOwned: true, mutexName, out var isFirst);
         _ownsInstanceMutex = isFirst;
         if (!isFirst)
         {
-            if (TrySignalRunningInstance())
+            if (!IsDemo && TrySignalRunningInstance())
             {
                 Shutdown();
                 return;
@@ -86,12 +100,15 @@ public partial class App : Application
             return;
         }
 
-        StartListeningForOtherInstances();
+        if (!IsDemo)
+            StartListeningForOtherInstances();
 
         // A dispatcher exception must not take the process down mid-copy.
         DispatcherUnhandledException += OnUnhandledException;
 
-        var settings = SettingsStore.Load();
+        // In demo mode: use hard-coded defaults, never read or write %APPDATA%.
+        var settings = IsDemo ? new AppSettings { Destination = @"D:\Backups\Claude" } : SettingsStore.Load();
+        var traySettings = IsDemo ? new TraySettings() : TraySettingsStore.Load();
 
         // Everything below builds the UI, and any of it can throw a
         // XamlParseException at LOAD time. If one does, the process must EXIT:
@@ -103,7 +120,7 @@ public partial class App : Application
             _theme = new ThemeManager();
             _theme.Apply(settings.DarkTheme);
 
-            var vm = new MainViewModel(settings, _theme);
+            var vm = new MainViewModel(settings, traySettings, _theme, IsDemo);
             var window = new MainWindow { DataContext = vm };
             MainWindow = window;
             window.Show();

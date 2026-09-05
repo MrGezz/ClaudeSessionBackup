@@ -1,0 +1,172 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # ---------------------------------------------------------------
+      # Version gate: the tag must match Directory.Build.props exactly.
+      # A mismatch means Release.ps1 was not used, or the bump was
+      # committed without tagging the right commit.
+      # ---------------------------------------------------------------
+      - name: Tag matches Directory.Build.props
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = $env:TAG_NAME -replace '^v', ''
+          $props = [xml](Get-Content Directory.Build.props)
+          $version = $props.Project.PropertyGroup.Version
+          if ($tag -ne $version) {
+            Write-Host "::error::Tag v$tag does not match Directory.Build.props Version '$version'."
+            Write-Host "Run tools\Release.ps1 -Version $tag to align them, or re-tag the right commit."
+            exit 1
+          }
+          Write-Host "Tag v$tag matches Directory.Build.props Version $version"
+
+      # ---------------------------------------------------------------
+      # Package: self-contained zip
+      # ---------------------------------------------------------------
+      - name: Package
+        shell: pwsh
+        run: pwsh -File tools\Package.ps1
+
+      # ---------------------------------------------------------------
+      # Installer: Inno Setup (preinstalled on windows-latest as
+      # C:\Program Files (x86)\Inno Setup 6\ISCC.exe).
+      # ---------------------------------------------------------------
+      - name: Installer
+        id: installer
+        shell: pwsh
+        run: |
+          pwsh -File tools\Make-Installer.ps1 -SkipPackage
+          if ($LASTEXITCODE -eq 2) {
+            Write-Host "::warning::ISCC not found after Make-Installer - will attempt install"
+            echo "iscc_missing=true" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::Make-Installer.ps1 failed (exit $LASTEXITCODE)"
+            exit 1
+          }
+          echo "iscc_missing=false" >> $env:GITHUB_OUTPUT
+
+      # Fallback: install Inno Setup if it was not on the runner.
+      - name: Install Inno Setup (fallback)
+        if: steps.installer.outputs.iscc_missing == 'true'
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Installer (retry)
+        if: steps.installer.outputs.iscc_missing == 'true'
+        shell: pwsh
+        run: |
+          pwsh -File tools\Make-Installer.ps1 -SkipPackage
+          if ($LASTEXITCODE -eq 2) {
+            Write-Host "::error::ISCC still not found after installing Inno Setup"
+            exit 1
+          }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::Make-Installer.ps1 failed (exit $LASTEXITCODE)"
+            exit 1
+          }
+
+      # ---------------------------------------------------------------
+      # Checksums
+      # ---------------------------------------------------------------
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist -Include 'ClaudeSessionBackup-*-Setup.exe', 'ClaudeSessionBackup-*-win-x64.zip' -Recurse
+          $lines = foreach ($f in $files) {
+            $hash = (Get-FileHash $f -Algorithm SHA256).Hash
+            "$($hash.ToLowerInvariant())  $($f.Name)"
+          }
+          # LF, no BOM, two spaces: the format `sha256sum -c` reads. Set-Content
+          # would write CRLF (and a BOM under Windows PowerShell). Make-Installer
+          # already wrote this file; this rewrites it from the final artefacts.
+          [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", (($lines -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+          Write-Host "SHA256SUMS.txt:"
+          Get-Content dist\SHA256SUMS.txt
+
+      # ---------------------------------------------------------------
+      # Extract release notes for this version (fall back to auto-gen)
+      # ---------------------------------------------------------------
+      - name: Extract release notes
+        id: notes
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = $env:TAG_NAME -replace '^v', ''
+          $rnPath = 'RELEASE_NOTES.md'
+          $bodyFile = "$env:RUNNER_TEMP\release_body.md"
+          $found = $false
+
+          if (Test-Path $rnPath) {
+            $lines = Get-Content $rnPath
+            $start = -1
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              if ($lines[$i] -match "^#\s+Claude Session Backup\s+$([regex]::Escape($tag))\s*$") {
+                $start = $i + 1
+                break
+              }
+            }
+            if ($start -ge 0) {
+              $end = $lines.Count
+              for ($i = $start; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match '^#\s+Claude Session Backup\s+\d') {
+                  $end = $i
+                  break
+                }
+              }
+              $body = ($lines[$start..($end - 1)] -join "`n").Trim()
+              if ($body.Length -gt 0) {
+                Set-Content $bodyFile -Value $body -Encoding UTF8
+                $found = $true
+              }
+            }
+          }
+
+          if ($found) {
+            echo "body_path=$bodyFile" >> $env:GITHUB_OUTPUT
+            echo "generate=false" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "body_path=" >> $env:GITHUB_OUTPUT
+            echo "generate=true" >> $env:GITHUB_OUTPUT
+          }
+
+      # ---------------------------------------------------------------
+      # GitHub Release
+      # ---------------------------------------------------------------
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Claude Session Backup ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.body_path || '' }}
+          generate_release_notes: ${{ steps.notes.outputs.generate == 'true' }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            dist/ClaudeSessionBackup-*-Setup.exe
+            dist/ClaudeSessionBackup-*-win-x64.zip
+            dist/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

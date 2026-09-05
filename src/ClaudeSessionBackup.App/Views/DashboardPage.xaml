@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+             xmlns:model="clr-namespace:ClaudeSessionBackup.Core.Model;assembly=ClaudeSessionBackup.Core">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -12,8 +13,9 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource WindowBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -26,7 +28,7 @@
 
         <!-- Store table -->
         <Border Grid.Row="1" Style="{StaticResource CardStyle}">
-            <DataGrid ItemsSource="{Binding StoreDefs}"
+            <DataGrid ItemsSource="{Binding StoreRows}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
                       HeadersVisibility="Column"
@@ -35,13 +37,115 @@
                       Background="Transparent"
                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                       RowBackground="Transparent"
-                      AlternatingRowBackground="{DynamicResource ControlFillColorDefaultBrush}"
-                      CanUserResizeRows="False">
+                      AlternatingRowBackground="{DynamicResource PanelBrush2}"
+                      HorizontalGridLinesBrush="{DynamicResource PanelLineBrush}"
+                      CanUserResizeRows="False"
+                      CanUserResizeColumns="False">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="ToolTip" Value="{Binding ToolTipText}" />
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Store" Binding="{Binding Name}" Width="160" />
-                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
-                    <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="80" />
-                    <DataGridCheckBoxColumn Header="Shrink Guard" Binding="{Binding ShrinkGuard}" Width="90" />
+                    <!-- Store name -->
+                    <DataGridTextColumn Header="Store" Binding="{Binding Name}" Width="140" />
+
+                    <!-- Description (wrapping) -->
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <!-- Live count + size -->
+                    <DataGridTemplateColumn Header="Live" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding LiveText}" TextAlignment="Right"
+                                           HorizontalAlignment="Stretch" Margin="4,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Backup summary -->
+                    <DataGridTemplateColumn Header="Backup" Width="170">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding BackupText}" TextAlignment="Right"
+                                           HorizontalAlignment="Stretch" Margin="4,0" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Status pill -->
+                    <DataGridTemplateColumn Header="Status" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border x:Name="Pill" Style="{StaticResource StatusPillStyle}">
+                                    <TextBlock x:Name="PillText" Text="{Binding StatusText}"
+                                               Style="{StaticResource StatusPillTextStyle}" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <!-- Ok / Verified: green -->
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.Ok}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusOkFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusOkLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusOkBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.Verified}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusOkFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusOkLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusOkBrush}" />
+                                    </DataTrigger>
+                                    <!-- Failed / Error / SourceEmptyBackupHasData: red -->
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.Failed}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.Error}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.SourceEmptyBackupHasData}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                                    </DataTrigger>
+                                    <!-- SourceMissing: optional stores show muted "absent"; non-optional show danger "missing" -->
+                                    <!-- Non-optional missing: danger - something is wrong -->
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Status}" Value="{x:Static model:StoreStatus.SourceMissing}" />
+                                            <Condition Binding="{Binding Optional}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                                    </MultiDataTrigger>
+                                    <!-- Optional absent: muted (the StatusPillStyle default is already muted,
+                                         but being explicit avoids depending on trigger evaluation order) -->
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Status}" Value="{x:Static model:StoreStatus.SourceMissing}" />
+                                            <Condition Binding="{Binding Optional}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusMutedFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusMutedLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusMutedBrush}" />
+                                    </MultiDataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static model:StoreStatus.SourceEmpty}">
+                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource StatusMutedFill}" />
+                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource StatusMutedLine}" />
+                                        <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource StatusMutedBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
@@ -57,23 +161,42 @@
             </StackPanel>
         </Border>
 
+        <!-- Store discovery warning: shown only when uncovered Claude data roots were found -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource StatusWarnFill}"
+                BorderBrush="{DynamicResource StatusWarnLine}"
+                BorderThickness="1" CornerRadius="8"
+                Padding="10,8" Margin="0,0,0,8"
+                Visibility="{Binding HasUncoveredData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="{Binding UncoveredDataText}"
+                       Foreground="{DynamicResource StatusWarnBrush}"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold" />
+        </Border>
+
         <!-- Action buttons -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
-            <ui:Button Content="Backup now" Appearance="Primary"
-                       Command="{Binding BackupCommand}"
-                       IsEnabled="{Binding IsNotRunning}"
-                       Margin="0,0,8,0" />
-            <ui:Button Content="Verify"
-                       Command="{Binding VerifyCommand}"
-                       IsEnabled="{Binding IsNotRunning}"
-                       Margin="0,0,8,0" />
-            <ui:Button Content="Cancel"
-                       Command="{Binding CancelCommand}"
-                       IsEnabled="{Binding IsRunning}" />
-        </StackPanel>
+        <Border Grid.Row="4"
+                Background="{DynamicResource CardBrush}"
+                BorderBrush="{DynamicResource PanelLineBrush}"
+                BorderThickness="1" CornerRadius="8"
+                Padding="12,8" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <ui:Button Content="Backup now" Appearance="Primary"
+                           Command="{Binding BackupCommand}"
+                           IsEnabled="{Binding IsNotRunning}"
+                           Margin="0,0,8,0" />
+                <ui:Button Content="Verify"
+                           Command="{Binding VerifyCommand}"
+                           IsEnabled="{Binding IsNotRunning}"
+                           Margin="0,0,8,0" />
+                <ui:Button Content="Cancel"
+                           Command="{Binding CancelCommand}"
+                           IsEnabled="{Binding IsRunning}" />
+            </StackPanel>
+        </Border>
 
         <!-- Log pane: monospaced, scrollable -->
-        <Border Grid.Row="4" Style="{StaticResource CardStyle}"
+        <Border Grid.Row="5" Style="{StaticResource CardStyle}"
                 Background="{DynamicResource LogBackgroundBrush}"
                 Padding="8">
             <ListBox ItemsSource="{Binding LogLines}"

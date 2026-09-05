@@ -5,8 +5,18 @@ obj/
 *.suo
 .vs/
 
+# --- private working notes (kept local, never published) ---
+CLAUDE.md
+memory.md
+
 # --- packaged distributables ---
 dist/
+
+# --- generated icon renders ---
+# app.ico IS committed (it is the shipped asset); the per-size PNGs that
+# tools/icon_source.py writes are intermediates. If they were committed before
+# this line existed: git rm -r --cached build
+build/
 
 # --- test / smoke scratch ---
 TestResults/
