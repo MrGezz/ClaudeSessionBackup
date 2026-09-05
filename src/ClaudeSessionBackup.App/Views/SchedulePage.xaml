@@ -44,7 +44,7 @@
 
                 <!-- Buttons -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                    <ui:Button Content="Install task" Appearance="Primary"
+                    <ui:Button Content="Register task" Appearance="Primary"
                                Command="{Binding InstallTaskCommand}"
                                Margin="0,0,8,0" />
                     <ui:Button Content="Uninstall task"

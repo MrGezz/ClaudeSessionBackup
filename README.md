@@ -153,7 +153,7 @@ per-size renders under `build\icon\` are intermediates and are git-ignored.
 
 ### Quick start (installer)
 
-Download `ClaudeSessionBackup-1.0.0-Setup.exe` from the repository's **Releases page** and run it.
+Download `ClaudeSessionBackup-1.0.1-Setup.exe` from the repository's **Releases page** and run it.
 
 The wizard installs per-user to `%LOCALAPPDATA%\Programs\ClaudeSessionBackup` — no administrator rights
 needed or requested. It creates a Start Menu entry; the desktop shortcut and the daily backup task are
@@ -175,7 +175,7 @@ The installer is self-contained — no .NET installation required.
 
 ### Quick start (zip)
 
-1. Download `ClaudeSessionBackup-1.0.0-win-x64.zip` from the Releases page.
+1. Download `ClaudeSessionBackup-1.0.1-win-x64.zip` from the Releases page.
 2. Right-click the zip > **Properties** > tick **Unblock** > OK. (Windows marks
    downloaded archives as blocked; unblocking before extracting clears the mark on
    all files inside. Unblocking after extraction does not.)
@@ -229,7 +229,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\Package.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\Make-Installer.ps1 -SkipPackage
 ```
 
-`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.0-win-x64.zip` (self-contained, ~65 MB).
+`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.1-win-x64.zip` (self-contained, ~65 MB).
 Running it first and then pointing `Make-Installer.ps1 -SkipPackage` at that exact payload is
 what guarantees the zip and the Setup.exe are the same build. `Make-Installer.ps1` also writes
 `dist\SHA256SUMS.txt` for both files (LF line endings, the format `sha256sum -c` reads).

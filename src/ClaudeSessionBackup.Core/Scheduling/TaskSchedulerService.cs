@@ -50,13 +50,18 @@ public sealed partial class TaskSchedulerService : ITaskSchedulerService
             if (task is null)
                 return new ScheduledTaskInfo(false, null, null, null, null, null);
 
-            DateTime? nextRun = task.NextRunTime == DateTime.MinValue ? null : task.NextRunTime;
-            DateTime? lastRun = task.LastRunTime == DateTime.MinValue ? null : task.LastRunTime;
+            // Task Scheduler reports 1999-11-30 (or 1899-12-30) for a task that never ran and
+            // for a task with no next trigger; the library passes them through, so anything
+            // before 2000 is "never" / "none", not a date to display (seen 2026-09-06 as
+            // "last: 1999-11-30 00:00" right after registering).
+            DateTime? nextRun = task.NextRunTime.Year < 2000 ? null : task.NextRunTime;
+            DateTime? lastRun = task.LastRunTime.Year < 2000 ? null : task.LastRunTime;
 
-            // Format the last result code in a human-readable way
-            string? lastResult = task.LastTaskResult == 0
-                ? "Success (0)"
-                : $"0x{task.LastTaskResult:X8}";
+            // Decode the last result: the CLI's own exit codes (0-4) and the Windows errors a
+            // scheduled task commonly ends with. Task Scheduler reports "Ready" whatever
+            // happened on the last trigger, so this text is the only place a failing task
+            // becomes visible to the user.
+            var (lastResult, lastRunFailed) = DescribeLastResult(task.LastTaskResult, lastRun);
 
             string? state = task.State.ToString();
 
@@ -66,7 +71,17 @@ public sealed partial class TaskSchedulerService : ITaskSchedulerService
             if (execAction is not null)
                 action = $"{execAction.Path} {execAction.Arguments}".Trim();
 
-            return new ScheduledTaskInfo(true, nextRun, lastRun, lastResult, state, action);
+            // A task whose exe is gone (moved build output, uninstalled app) still shows
+            // "Ready" and fails with 0x80070002 on every trigger - report it up front.
+            bool actionExists = execAction is null
+                || string.IsNullOrWhiteSpace(execAction.Path)
+                || File.Exists(execAction.Path.Trim().Trim('"'));
+
+            return new ScheduledTaskInfo(true, nextRun, lastRun, lastResult, state, action)
+            {
+                LastRunFailed = lastRunFailed,
+                ActionExecutableExists = actionExists,
+            };
         }
         catch
         {
@@ -114,6 +129,17 @@ public sealed partial class TaskSchedulerService : ITaskSchedulerService
             ?? throw new ArgumentException(
                 $"Cannot determine working directory from path \"{cliExecutablePath}\".",
                 nameof(cliExecutablePath));
+
+        // The scheduler accepts any path and then fails every trigger with 0x80070002 while
+        // showing "Ready". Refuse here, where the error can name the fix.
+        if (!File.Exists(cliExecutablePath))
+        {
+            throw new FileNotFoundException(
+                $"The CLI executable does not exist at \"{cliExecutablePath}\". Install the app with " +
+                "Setup.exe (both exes land in one folder) or build the ClaudeSessionBackup.Cli project, " +
+                "then register the task again.",
+                cliExecutablePath);
+        }
 
         // Build the CLI arguments: backup --destination "<dest>" --quiet [--include-subagents]
         var args = $"backup --destination \"{options.Destination}\" --quiet";
@@ -192,6 +218,32 @@ public sealed partial class TaskSchedulerService : ITaskSchedulerService
     /// Removes the named task from the root Task Scheduler folder.
     /// No-ops silently if the task does not exist.
     /// </summary>
+    /// <summary>
+    /// Human-readable text for <c>LastTaskResult</c> plus whether it counts as a failure.
+    /// Negative <see cref="int"/> values are the HRESULTs Task Scheduler stores (printed as
+    /// two's-complement hex). Exposed to the tests.
+    /// </summary>
+    internal static (string Text, bool Failed) DescribeLastResult(int code, DateTime? lastRun)
+    {
+        switch (unchecked((uint)code))
+        {
+            case 0x0:        return ("Success (0)", false);
+            case 0x1:        return ("completed with warnings (exit 1)", false);
+            case 0x2:        return ("FAILED: the backup reported failures (exit 2)", true);
+            case 0x3:        return ("FAILED: usage or configuration error (exit 3)", true);
+            case 0x4:        return ("REFUSED: lock held or the desktop app was running (exit 4)", true);
+            case 0x41301:    return ("running", false);
+            case 0x41303:    return (lastRun is null ? "never run" : "never run (0x41303)", false);
+            case 0x41306:    return ("terminated by the user (0x41306)", true);
+            case 0x80070002: return ("FAILED: the task's exe was not found (0x80070002) - register the task again from the Schedule page", true);
+            case 0x8007010B: return ("FAILED: the task's working folder was not found (0x8007010B) - register the task again from the Schedule page", true);
+            case 0x80070005: return ("FAILED: access denied (0x80070005)", true);
+            case 0x800704DD: return ("did not run: the user was not logged on (0x800704DD)", false);
+            case 0x800710E0: return ("did not run: the user was not logged on at the trigger (0x800710E0)", false);
+            default:         return ($"FAILED: 0x{code:X8}", true);
+        }
+    }
+
     public void Unregister(string taskName)
     {
         try

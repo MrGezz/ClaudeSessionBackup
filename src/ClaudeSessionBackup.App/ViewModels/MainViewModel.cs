@@ -121,6 +121,30 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>True when <see cref="UncoveredDataText"/> is non-empty.</summary>
     public bool HasUncoveredData => !string.IsNullOrEmpty(_uncoveredDataText);
 
+    private string _taskWarningText = "";
+
+    /// <summary>
+    /// Dashboard warning about the scheduled task: its exe does not exist, or its last run
+    /// failed. Empty when there is nothing to say. Task Scheduler itself shows "Ready" in
+    /// both cases, which is how a broken daily backup went unnoticed (2026-09-06).
+    /// </summary>
+    public string TaskWarningText
+    {
+        get => _taskWarningText;
+        set
+        {
+            if (_taskWarningText != value)
+            {
+                _taskWarningText = value;
+                OnPropertyChanged(nameof(TaskWarningText));
+                OnPropertyChanged(nameof(HasTaskWarning));
+            }
+        }
+    }
+
+    /// <summary>True when <see cref="TaskWarningText"/> is non-empty.</summary>
+    public bool HasTaskWarning => !string.IsNullOrEmpty(_taskWarningText);
+
     public ICommand BackupCommand { get; }
     public ICommand VerifyCommand { get; }
     public ICommand CancelCommand { get; }
@@ -812,25 +836,45 @@ public sealed class MainViewModel : ViewModelBase
             var info = _scheduler.Query("ClaudeSessionBackup");
             if (info.Exists)
             {
-                TaskStatus = $"Installed - next run: {info.NextRun:yyyy-MM-dd HH:mm}, " +
-                    $"last: {info.LastRun:yyyy-MM-dd HH:mm} ({info.LastResult}), state: {info.State}";
-                ScheduledTaskStatus = $"Task: {info.State}, next: {info.NextRun:HH:mm}";
+                var last = info.LastRun is null
+                    ? "never"
+                    : $"{info.LastRun:yyyy-MM-dd HH:mm} - {info.LastResult}";
+                TaskStatus = $"Installed - next run: {info.NextRun:yyyy-MM-dd HH:mm}, last: {last}, state: {info.State}";
+                if (!info.ActionExecutableExists)
+                {
+                    TaskStatus += "\nThe task points at an exe that does not exist, so every run fails with " +
+                                  $"0x80070002:\n  {info.Action}\nClick Register to re-point it at the current CLI.";
+                }
+
+                ScheduledTaskStatus = info.LastRun is null
+                    ? $"Task: {info.State}, next: {info.NextRun:HH:mm}, never run yet"
+                    : $"Task: {info.State}, next: {info.NextRun:HH:mm}, last: {info.LastRun:MM-dd HH:mm} - {info.LastResult}";
+
+                TaskWarningText = !info.ActionExecutableExists
+                    ? "The daily backup task points at an exe that does not exist, so it fails silently on every run. " +
+                      "Open Schedule and click Register to re-point it at the current CLI."
+                    : info.LastRunFailed
+                        ? $"The daily backup task's last run failed: {info.LastResult}. Open Schedule for details."
+                        : "";
             }
             else
             {
                 TaskStatus = "Not installed";
                 ScheduledTaskStatus = "No scheduled task";
+                TaskWarningText = "";
             }
         }
         catch (NotImplementedException)
         {
             TaskStatus = "Scheduler not yet implemented";
             ScheduledTaskStatus = "";
+            TaskWarningText = "";
         }
         catch (Exception ex)
         {
             TaskStatus = $"Error: {ex.Message}";
             ScheduledTaskStatus = "";
+            TaskWarningText = "";
         }
     }
 
@@ -839,6 +883,12 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             var cliPath = ResolveCliPath();
+            if (cliPath is null)
+            {
+                StatusText = "Install failed: ClaudeSessionBackup.Cli.exe was not found beside the app " +
+                             "(nor in the Cli project's build output). Install with Setup.exe or build the Cli project first.";
+                return;
+            }
             var options = new ScheduleOptions
             {
                 StartAt = TaskTime,
@@ -880,14 +930,32 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// The CLI exe is expected next to the app exe: both are published into the
-    /// same output folder by the solution build.
+    /// The CLI exe next to the app exe (the installed and packaged layouts publish both into
+    /// one folder) or, when the app runs from a development build, the Cli project's output
+    /// for the same configuration. Returns null when neither exists: registering a task
+    /// against a missing exe makes Task Scheduler show "Ready" and fail with 0x80070002 on
+    /// every trigger, which is exactly what happened with the first task the owner registered
+    /// from bin\Release (2026-09-05 22:05, found 2026-09-06).
     /// </summary>
-    private static string ResolveCliPath()
+    private static string? ResolveCliPath()
     {
-        var appDir = AppContext.BaseDirectory;
-        var cliExe = Path.Combine(appDir, "ClaudeSessionBackup.Cli.exe");
-        return File.Exists(cliExe) ? cliExe : cliExe; // Return path even if missing, scheduler will report it
+        var appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var beside = Path.Combine(appDir, "ClaudeSessionBackup.Cli.exe");
+        if (File.Exists(beside))
+            return beside;
+
+        // Development layout: <repo>\src\ClaudeSessionBackup.App\bin\<cfg>\<tfm> -> the Cli sibling.
+        var tfmDir = new DirectoryInfo(appDir);          // net8.0-windows
+        var cfgDir = tfmDir.Parent;                       // Release or Debug
+        var srcDir = cfgDir?.Parent?.Parent?.Parent;      // bin -> ClaudeSessionBackup.App -> src
+        if (cfgDir is not null && srcDir is not null)
+        {
+            var sibling = Path.Combine(srcDir.FullName, "ClaudeSessionBackup.Cli", "bin", cfgDir.Name, tfmDir.Name, "ClaudeSessionBackup.Cli.exe");
+            if (File.Exists(sibling))
+                return sibling;
+        }
+
+        return null;
     }
 
     // -------------------------------------------------------------- settings

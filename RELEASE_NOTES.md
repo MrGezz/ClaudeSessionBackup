@@ -1,3 +1,25 @@
+# Claude Session Backup 1.0.1
+
+Released 2026-09-06. Upgrade in place with `ClaudeSessionBackup-1.0.1-Setup.exe`; close the app first,
+the installer waits on its mutex. After upgrading, open Schedule and click **Register task** once so the
+daily task points at the installed CLI rather than a build folder.
+
+## Fixed
+
+- **The daily task could fail silently.** A task registered from a development build pointed at a CLI
+  exe that did not exist. Task Scheduler showed "Ready" and failed every trigger with 0x80070002. The app
+  now refuses to register a task whose exe does not exist, finds the CLI beside the app or in the CLI
+  project's build output, decodes the last result (the CLI's exit codes and the common Windows errors)
+  on the Dashboard and the Schedule page, and shows a warning card when the task's exe is missing or its
+  last run failed. A task that never ran reads "never run" instead of 1999-11-30.
+- **Dashboard at small window heights.** The store table pushed the last-run card, the buttons and the
+  log below the window. The table and the log now share the height and scroll inside their cards; the
+  Store and Backup columns no longer clip.
+
+## Changed
+
+- **Settings page** uses the same card-and-toggle layout as ACC Sync: Backup, Appearance (dark theme)
+  and Window (minimise / close to the notification area) with pill switches. The page scrolls.
 # Claude Session Backup 1.0.0
 
 Released 2026-09-06. First release.

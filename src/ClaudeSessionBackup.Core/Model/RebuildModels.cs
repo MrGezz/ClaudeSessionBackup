@@ -102,4 +102,20 @@ public sealed partial record ScheduledTaskInfo(
     DateTime? LastRun,
     string? LastResult,
     string? State,
-    string? Action);
+    string? Action)
+{
+    /// <summary>
+    /// True when the last run ended in anything but success, "completed with warnings",
+    /// "never run", "running" or "user not logged on": a CLI exit 2/3/4 or a Windows error
+    /// such as 0x80070002. Task Scheduler shows "Ready" regardless, so this is how a
+    /// silently failing task becomes visible (found 2026-09-06: a task registered from a
+    /// development build pointed at an exe that did not exist and failed every trigger).
+    /// </summary>
+    public bool LastRunFailed { get; init; }
+
+    /// <summary>
+    /// False when the executable named in <see cref="Action"/> does not exist on disk. Such a
+    /// task is accepted by the scheduler and fails with 0x80070002 on every trigger.
+    /// </summary>
+    public bool ActionExecutableExists { get; init; } = true;
+}

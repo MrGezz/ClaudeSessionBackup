@@ -14,13 +14,17 @@
     </UserControl.Resources>
 
     <Grid Background="{DynamicResource WindowBrush}">
+        <!-- The store table and the log share the window height (2:1) and each
+             scrolls inside its card. With an Auto row the thirteen wrapped rows
+             grew past the window and pushed the last-run card, the buttons and
+             the log below the bottom edge with nothing to scroll. -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" MinHeight="220" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="*" MinHeight="120" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -40,7 +44,9 @@
                       AlternatingRowBackground="{DynamicResource PanelBrush2}"
                       HorizontalGridLinesBrush="{DynamicResource PanelLineBrush}"
                       CanUserResizeRows="False"
-                      CanUserResizeColumns="False">
+                      CanUserResizeColumns="False"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
                         <Setter Property="ToolTip" Value="{Binding ToolTipText}" />
@@ -48,7 +54,8 @@
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
                     <!-- Store name -->
-                    <DataGridTextColumn Header="Store" Binding="{Binding Name}" Width="140" />
+                    <!-- 160: "cowork3p-agent-mode" clipped at 140 -->
+                    <DataGridTextColumn Header="Store" Binding="{Binding Name}" Width="160" />
 
                     <!-- Description (wrapping) -->
                     <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*">
@@ -70,7 +77,8 @@
                     </DataGridTemplateColumn>
 
                     <!-- Backup summary -->
-                    <DataGridTemplateColumn Header="Backup" Width="170">
+                    <!-- 195: "+493 copied, 13,430 same" clipped at 170 -->
+                    <DataGridTemplateColumn Header="Backup" Width="195">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding BackupText}" TextAlignment="Right"
@@ -161,18 +169,33 @@
             </StackPanel>
         </Border>
 
-        <!-- Store discovery warning: shown only when uncovered Claude data roots were found -->
-        <Border Grid.Row="3"
-                Background="{DynamicResource StatusWarnFill}"
-                BorderBrush="{DynamicResource StatusWarnLine}"
-                BorderThickness="1" CornerRadius="8"
-                Padding="10,8" Margin="0,0,0,8"
-                Visibility="{Binding HasUncoveredData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding UncoveredDataText}"
-                       Foreground="{DynamicResource StatusWarnBrush}"
-                       TextWrapping="Wrap"
-                       FontWeight="SemiBold" />
-        </Border>
+        <!-- Warnings, each shown only when it has something to say -->
+        <StackPanel Grid.Row="3">
+            <!-- Store discovery: uncovered Claude data roots were found -->
+            <Border Background="{DynamicResource StatusWarnFill}"
+                    BorderBrush="{DynamicResource StatusWarnLine}"
+                    BorderThickness="1" CornerRadius="8"
+                    Padding="10,8" Margin="0,0,0,8"
+                    Visibility="{Binding HasUncoveredData, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="{Binding UncoveredDataText}"
+                           Foreground="{DynamicResource StatusWarnBrush}"
+                           TextWrapping="Wrap"
+                           FontWeight="SemiBold" />
+            </Border>
+            <!-- Scheduled task: its exe is missing or its last run failed. Task Scheduler
+                 shows "Ready" in both cases, so without this card a broken daily backup
+                 looks healthy (it did, 2026-09-05 22:05 to 2026-09-06). -->
+            <Border Background="{DynamicResource StatusWarnFill}"
+                    BorderBrush="{DynamicResource StatusWarnLine}"
+                    BorderThickness="1" CornerRadius="8"
+                    Padding="10,8" Margin="0,0,0,8"
+                    Visibility="{Binding HasTaskWarning, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock Text="{Binding TaskWarningText}"
+                           Foreground="{DynamicResource StatusWarnBrush}"
+                           TextWrapping="Wrap"
+                           FontWeight="SemiBold" />
+            </Border>
+        </StackPanel>
 
         <!-- Action buttons -->
         <Border Grid.Row="4"

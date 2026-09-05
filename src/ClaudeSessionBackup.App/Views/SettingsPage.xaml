@@ -12,71 +12,141 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Background="{DynamicResource WindowBrush}">
-        <TextBlock Text="Settings" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
+    <!-- Same shape as Sync-ACC's Settings page (user request 2026-09-06): one card per
+         topic, a title, a bold label, a one-line hint, and a pill ToggleSwitch on the
+         right for every yes/no choice. Scrollable, so a short window still reaches the
+         last card. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Background="{DynamicResource WindowBrush}">
+        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
-        <Border Style="{StaticResource CardStyle}">
-            <StackPanel>
-                <!-- Destination -->
-                <TextBlock Text="Backup destination" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
-                <Grid Margin="0,0,0,16">
+            <!-- ============================================================== -->
+            <!-- Backup                                                          -->
+            <!-- ============================================================== -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Backup" Style="{StaticResource SectionHeaderStyle}" />
+
+                    <TextBlock Text="Destination"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,8,0,0" />
+                    <TextBlock Text="A folder neither Claude app touches. One destination per machine keeps the run history apart."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox Grid.Column="0"
+                                    Text="{Binding Destination, UpdateSourceTrigger=PropertyChanged}"
+                                    Margin="0,0,8,0" />
+                        <ui:Button Grid.Column="1" Content="Browse..."
+                                   Command="{Binding BrowseDestinationCommand}" />
+                    </Grid>
+
+                    <!-- Include subagents -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Include subagent transcripts"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="The workflow scratch under each session's subagents folder (about 1.2 GB). Off keeps the backup small; on keeps every worker transcript too."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         IsChecked="{Binding IncludeSubagents, Mode=TwoWay}"
+                                         VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Keep snapshots -->
+                    <TextBlock Text="Snapshots to keep"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="Dated zips of the small stores. Older ones are moved to _to_delete, never deleted. 0 keeps them all."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <ui:TextBox Width="120" HorizontalAlignment="Left"
+                                Text="{Binding KeepSnapshots, UpdateSourceTrigger=PropertyChanged}"
+                                Margin="0,0,0,12" />
+
+                    <ui:Button Content="Save settings" Appearance="Primary"
+                               Command="{Binding SaveSettingsCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ============================================================== -->
+            <!-- Appearance                                                      -->
+            <!-- ============================================================== -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:TextBox Grid.Column="0"
-                                Text="{Binding Destination, UpdateSourceTrigger=PropertyChanged}"
-                                Margin="0,0,8,0" />
-                    <ui:Button Grid.Column="1" Content="Browse..."
-                               Command="{Binding BrowseDestinationCommand}" />
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionHeaderStyle}" />
+                        <TextBlock Text="Dark theme"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Applied at once. Save settings keeps the choice for the next start."
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <!-- ToggleThemeCommand does the work (ThemeManager swaps the dictionaries);
+                         IsChecked is one-way so the pill always reads the live IsDark value. -->
+                    <ui:ToggleSwitch Grid.Column="1"
+                                     IsChecked="{Binding IsDark, Mode=OneWay}"
+                                     Command="{Binding ToggleThemeCommand}"
+                                     VerticalAlignment="Center" />
                 </Grid>
+            </Border>
 
-                <!-- Include subagents -->
-                <CheckBox Content="Include subagent transcripts (~1.2 GB of workflow scratch)"
-                          IsChecked="{Binding IncludeSubagents}"
-                          Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                          Margin="0,0,0,12" />
+            <!-- ============================================================== -->
+            <!-- Window                                                          -->
+            <!-- ============================================================== -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Window" Style="{StaticResource SectionHeaderStyle}" />
 
-                <!-- Keep snapshots -->
-                <Grid Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="100" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Keep snapshots (0 = all):"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    <ui:TextBox Grid.Column="1"
-                                Text="{Binding KeepSnapshots, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
+                    <Grid Margin="0,4,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Minimise to the notification area"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Minimising hides the window and leaves an icon by the clock. Double-click it to come back, or right-click for Open and Exit. Scheduled runs do not need the app open either way."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"
+                                         VerticalAlignment="Center" />
+                    </Grid>
 
-                <!-- Tray behaviour -->
-                <TextBlock Text="Notification area" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
-                <CheckBox Content="Minimize to notification area instead of taskbar"
-                          IsChecked="{Binding MinimizeToTray}"
-                          Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                          Margin="0,0,0,6" />
-                <CheckBox Content="Close button hides to notification area instead of exiting"
-                          IsChecked="{Binding CloseToTray}"
-                          Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                          Margin="0,0,0,16" />
-
-                <!-- Dark/light theme -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                    <TextBlock Text="Theme:"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                               Margin="0,0,12,0" />
-                    <ui:Button Content="Toggle dark / light"
-                               Command="{Binding ToggleThemeCommand}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Close to the notification area"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="The window's X hides it instead of quitting. Exit from the icon's menu quits; a running backup is finished first. Both switches apply at once and are kept by Save settings."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         IsChecked="{Binding CloseToTray, Mode=TwoWay}"
+                                         VerticalAlignment="Center" />
+                    </Grid>
                 </StackPanel>
-
-                <!-- Save -->
-                <ui:Button Content="Save settings" Appearance="Primary"
-                           Command="{Binding SaveSettingsCommand}" />
-            </StackPanel>
-        </Border>
-    </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
