@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The engine. UI-free and WPF-free so the same assembly backs both the WPF app
+    and the headless CLI that Task Scheduler runs: exactly one implementation of
+    "what counts as changed", "what is held back by the shrink guard" and "how a
+    sidebar record is synthesised".
+
+    net8.0-windows because scheduled-task registration and the desktop-app
+    process check are Windows-only by definition.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>ClaudeSessionBackup.Core</AssemblyName>
+    <RootNamespace>ClaudeSessionBackup.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Scheduled-task registration without shelling out to schtasks.exe or
+         PowerShell. Same package and version as Sync-ACC. -->
+    <PackageReference Include="TaskScheduler" Version="2.12.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaudeSessionBackup.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,43 @@
+<!--
+    HAND-WRITTEN, unlike Charcoal.xaml next to it (which is GENERATED and must
+    not be edited). This app's own semantic keys in the CyanogenMod-2 dark
+    palette: ok #4CAF50, warn #FFB300, danger #FF5252, violet #7C4DFF,
+    accent #00BCD4, muted #5F7885. Every key here MUST also exist in
+    Semantic.Light.xaml - a key defined in only one of the pair resolves to
+    black in the other theme with no binding error.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- accent: rest / hover / 10% soft fill -->
+    <SolidColorBrush x:Key="AppAccentBrush"      Color="#FF00BCD4" />
+    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF26C6DA" />
+    <SolidColorBrush x:Key="AppAccentSoftBrush"  Color="#1A00BCD4" />
+
+    <!-- status tones: ink / 10% fill / 45% edge -->
+    <SolidColorBrush x:Key="StatusOkBrush"       Color="#FF4CAF50" />
+    <SolidColorBrush x:Key="StatusOkFill"        Color="#1A4CAF50" />
+    <SolidColorBrush x:Key="StatusOkLine"        Color="#734CAF50" />
+
+    <SolidColorBrush x:Key="StatusWarnBrush"     Color="#FFFFB300" />
+    <SolidColorBrush x:Key="StatusWarnFill"      Color="#1AFFB300" />
+    <SolidColorBrush x:Key="StatusWarnLine"      Color="#73FFB300" />
+
+    <SolidColorBrush x:Key="StatusDangerBrush"   Color="#FFFF5252" />
+    <SolidColorBrush x:Key="StatusDangerFill"    Color="#1AFF5252" />
+    <SolidColorBrush x:Key="StatusDangerLine"    Color="#73FF5252" />
+
+    <SolidColorBrush x:Key="StatusVioletBrush"   Color="#FF7C4DFF" />
+    <SolidColorBrush x:Key="StatusVioletFill"    Color="#1A7C4DFF" />
+    <SolidColorBrush x:Key="StatusVioletLine"    Color="#737C4DFF" />
+
+    <SolidColorBrush x:Key="StatusMutedBrush"    Color="#FF5F7885" />
+    <SolidColorBrush x:Key="StatusMutedFill"     Color="#1A5F7885" />
+    <SolidColorBrush x:Key="StatusMutedLine"     Color="#735F7885" />
+
+    <!-- chrome -->
+    <SolidColorBrush x:Key="PanelBrush"          Color="#FF1B2A30" />
+    <SolidColorBrush x:Key="PanelLineBrush"      Color="#FF2B3E46" />
+    <SolidColorBrush x:Key="LogBackgroundBrush"  Color="#FF121C20" />
+    <SolidColorBrush x:Key="LogForegroundBrush"  Color="#FFB0C4CE" />
+</ResourceDictionary>

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ClaudeSessionBackup.App/ClaudeSessionBackup.App.csproj" />
+    <Project Path="src/ClaudeSessionBackup.Cli/ClaudeSessionBackup.Cli.csproj" />
+    <Project Path="src/ClaudeSessionBackup.Core/ClaudeSessionBackup.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ClaudeSessionBackup.Tests/ClaudeSessionBackup.Tests.csproj" />
+  </Folder>
+</Solution>

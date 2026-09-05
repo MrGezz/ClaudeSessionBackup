@@ -1,0 +1,97 @@
+<UserControl x:Class="ClaudeSessionBackup.App.Views.DashboardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Dashboard" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
+
+        <!-- Store table -->
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+            <DataGrid ItemsSource="{Binding StoreDefs}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="0"
+                      Background="Transparent"
+                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                      RowBackground="Transparent"
+                      AlternatingRowBackground="{DynamicResource ControlFillColorDefaultBrush}"
+                      CanUserResizeRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Store" Binding="{Binding Name}" Width="160" />
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                    <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="80" />
+                    <DataGridCheckBoxColumn Header="Shrink Guard" Binding="{Binding ShrinkGuard}" Width="90" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Last run summary + task status -->
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+            <StackPanel>
+                <TextBlock Text="{Binding LastRunSummary}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ScheduledTaskStatus}" Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,12">
+            <ui:Button Content="Backup now" Appearance="Primary"
+                       Command="{Binding BackupCommand}"
+                       IsEnabled="{Binding IsNotRunning}"
+                       Margin="0,0,8,0" />
+            <ui:Button Content="Verify"
+                       Command="{Binding VerifyCommand}"
+                       IsEnabled="{Binding IsNotRunning}"
+                       Margin="0,0,8,0" />
+            <ui:Button Content="Cancel"
+                       Command="{Binding CancelCommand}"
+                       IsEnabled="{Binding IsRunning}" />
+        </StackPanel>
+
+        <!-- Log pane: monospaced, scrollable -->
+        <Border Grid.Row="4" Style="{StaticResource CardStyle}"
+                Background="{DynamicResource LogBackgroundBrush}"
+                Padding="8">
+            <ListBox ItemsSource="{Binding LogLines}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     x:Name="LogListBox">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   FontFamily="Cascadia Mono, Consolas, Courier New"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource LogForegroundBrush}"
+                                   TextWrapping="NoWrap" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </Grid>
+</UserControl>

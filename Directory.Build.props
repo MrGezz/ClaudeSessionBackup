@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Solution-wide build settings. Same choices as Sync-ACC, for the same reasons:
+    net8.0-windows (current LTS, RollForward so a 9/10-only box still runs it),
+    nullable + async warnings promoted to errors because this tool copies files
+    and synthesises app state - a silently-null path is a data-loss bug.
+  -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Product>Claude Session Backup</Product>
+    <Company>IcZ Workspace</Company>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Copyright>Copyright © 2026 IcZ Workspace</Copyright>
+
+    <RollForward>LatestMajor</RollForward>
+
+    <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603;CS8618;CS4014</WarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

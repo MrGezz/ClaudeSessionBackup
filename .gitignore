@@ -1,0 +1,20 @@
+# --- .NET build output ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# --- packaged distributables ---
+dist/
+
+# --- test / smoke scratch ---
+TestResults/
+_smoke/
+
+# --- OS / editor noise ---
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*~

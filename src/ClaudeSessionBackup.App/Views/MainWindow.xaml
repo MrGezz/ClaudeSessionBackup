@@ -1,0 +1,362 @@
+<ui:FluentWindow x:Class="ClaudeSessionBackup.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:ClaudeSessionBackup.App.ViewModels"
+        xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+        xmlns:local="clr-namespace:ClaudeSessionBackup.App.Views"
+        Title="Claude Session Backup"
+        Width="1180" Height="760"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Closing="OnClosing">
+
+    <ui:FluentWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- ==================== nav rail radio style =================== -->
+            <Style x:Key="NavRadioStyle" TargetType="RadioButton">
+                <Setter Property="Height"              Value="40" />
+                <Setter Property="Margin"              Value="8,1" />
+                <Setter Property="Padding"             Value="12,0" />
+                <Setter Property="Cursor"              Value="Hand" />
+                <Setter Property="Background"          Value="Transparent" />
+                <Setter Property="Foreground"
+                        Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment"   Value="Center" />
+                <Setter Property="SnapsToDevicePixels"        Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Root"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Border x:Name="AccentBar"
+                                            Width="3" HorizontalAlignment="Left"
+                                            Margin="-10,6,-0,6"
+                                            CornerRadius="1.5"
+                                            Background="{DynamicResource AppAccentBrush}"
+                                            Visibility="Collapsed" />
+                                    <ContentPresenter
+                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                        RecognizesAccessKey="True" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Root" Property="Background"
+                                            Value="{DynamicResource AppAccentSoftBrush}" />
+                                    <Setter TargetName="AccentBar" Property="Visibility"
+                                            Value="Visible" />
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Root" Property="Background"
+                                            Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                </Trigger>
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsChecked" Value="True" />
+                                        <Condition Property="IsMouseOver" Value="True" />
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="Root" Property="Background"
+                                            Value="{DynamicResource AppAccentSoftBrush}" />
+                                </MultiTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ======================== title bar ============================== -->
+        <ui:TitleBar Grid.Row="0" Title="Claude Session Backup"
+                     ShowMaximize="True" ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" Width="16" Height="16" />
+            </ui:TitleBar.Icon>
+
+            <ui:TitleBar.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Button Command="{Binding ToggleThemeCommand}"
+                            Background="Transparent" BorderThickness="0"
+                            ToolTip="Toggle light / dark theme"
+                            Padding="8,4" VerticalAlignment="Center">
+                        <ui:SymbolIcon>
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Setter Property="Symbol" Value="WeatherSunny24" />
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDark}" Value="True">
+                                            <Setter Property="Symbol" Value="WeatherMoon24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </Button>
+                </StackPanel>
+            </ui:TitleBar.Header>
+        </ui:TitleBar>
+
+        <!-- ======================== body =================================== -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ==================== left nav rail ========================== -->
+            <Border Grid.Column="0"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="0,0,1,0"
+                    Background="{DynamicResource ApplicationBackgroundBrush}">
+                <StackPanel Margin="0,8,0,0">
+
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Dashboard}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="DocumentBulletList24"
+                                           Foreground="{Binding Foreground,
+                                               RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Text="Dashboard"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Catalog}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="DocumentMultiple24"
+                                           Foreground="{Binding Foreground,
+                                               RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Text="Catalog"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Restore}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Alert24"
+                                           Foreground="{Binding Foreground,
+                                               RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Text="Restore"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Schedule}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Clock24"
+                                           Foreground="{Binding Foreground,
+                                               RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Text="Schedule"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton GroupName="Nav"
+                                 IsChecked="{Binding CurrentPage,
+                                     Converter={StaticResource EnumToBoolConverter},
+                                     ConverterParameter=Settings}"
+                                 Style="{StaticResource NavRadioStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Settings24"
+                                           Foreground="{Binding Foreground,
+                                               RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Text="Settings"
+                                       Foreground="{Binding Foreground,
+                                           RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                </StackPanel>
+            </Border>
+
+            <!-- ==================== content host =========================== -->
+            <Grid Grid.Column="1" Margin="24,16,24,16">
+                <local:DashboardPage>
+                    <local:DashboardPage.Style>
+                        <Style TargetType="local:DashboardPage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Dashboard">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:DashboardPage.Style>
+                </local:DashboardPage>
+
+                <local:CatalogPage>
+                    <local:CatalogPage.Style>
+                        <Style TargetType="local:CatalogPage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Catalog">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:CatalogPage.Style>
+                </local:CatalogPage>
+
+                <local:RestorePage>
+                    <local:RestorePage.Style>
+                        <Style TargetType="local:RestorePage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Restore">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:RestorePage.Style>
+                </local:RestorePage>
+
+                <local:SchedulePage>
+                    <local:SchedulePage.Style>
+                        <Style TargetType="local:SchedulePage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Schedule">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:SchedulePage.Style>
+                </local:SchedulePage>
+
+                <local:SettingsPage>
+                    <local:SettingsPage.Style>
+                        <Style TargetType="local:SettingsPage">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentPage}" Value="Settings">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:SettingsPage.Style>
+                </local:SettingsPage>
+            </Grid>
+        </Grid>
+
+        <!-- ======================== status strip =========================== -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Background="{DynamicResource ApplicationBackgroundBrush}"
+                Padding="16,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            ToolTip="IcZ Workspace Core">
+                    <TextBlock Text="&#xE8FD;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="11"
+                               Foreground="{DynamicResource AppAccentBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <TextBlock Text="IcZ"
+                               FontWeight="ExtraBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Opacity="0.85"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text=" Workspace"
+                               FontWeight="Light"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Opacity="0.7"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Width="1" Height="14"
+                        Margin="12,0,12,0"
+                        Background="{DynamicResource CardStrokeColorDefaultBrush}"
+                        VerticalAlignment="Center" />
+
+                <TextBlock Grid.Column="2"
+                           Text="{Binding StatusText}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <StackPanel Grid.Column="3"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <ui:ProgressRing Width="16" Height="16"
+                                     IsIndeterminate="True"
+                                     Margin="0,0,8,0"
+                                     Visibility="{Binding IsRunning,
+                                         Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <TextBlock Text="{Binding ElapsedSec,
+                                   Converter={StaticResource DurationConverter}}"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding IsRunning,
+                                   Converter={StaticResource BoolToVisibilityConverter}}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

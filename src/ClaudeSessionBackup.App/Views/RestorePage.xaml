@@ -1,0 +1,158 @@
+<UserControl x:Class="ClaudeSessionBackup.App.Views.RestorePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+            <TextBlock Text="Restore" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
+
+            <!-- Restore guide -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Text="How to restore" FontWeight="SemiBold" FontSize="14"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                        <Run FontWeight="SemiBold" Text="1. LOST transcripts" />
+                        <Run Text=" (in backup, not live): Claude Code's cleanup deleted them. Copy back from" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" live\code-transcripts " />
+                        <Run Text="to" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" ~\.claude\projects " />
+                        <Run Text="using robocopy /E /XC /XN /XO. Touch the restored files to reset mtime." />
+                        <LineBreak /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="2. Sidebar wiped" />
+                        <Run Text=" (index records gone): Close Claude Desktop first (window AND tray icon). " />
+                        <Run Text="Option A: copy backed-up records from" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" live\cowork-index " />
+                        <Run Text="back. Option B: synthesise missing records with the rebuild tool below." />
+                        <LineBreak /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="3. Agent-mode sessions" />
+                        <Run Text=" wiped: close Claude Desktop, copy from" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" live\cowork-agent-mode" />
+                        <Run Text="." />
+                        <LineBreak /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="4. Settings/configs:" />
+                        <Run Text=" copy individual files by hand from" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" live\code-config " />
+                        <Run Text="or" />
+                        <Run FontFamily="Cascadia Mono, Consolas" Text=" live\cowork-config" />
+                        <Run Text=". Do not robocopy the whole folder." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Catalog-not-loaded hint -->
+            <Border Style="{StaticResource CardStyle}"
+                    Visibility="{Binding CatalogSessions.Count,
+                        Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=invert}">
+                <TextBlock Text="Build the catalog first (Catalog page > Refresh) to detect lost and dangling sessions."
+                           Style="{StaticResource FieldLabelStyle}" FontStyle="Italic" />
+            </Border>
+
+            <!-- LOST sessions -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" FontSize="14"
+                               Foreground="{DynamicResource StatusDangerBrush}" Margin="0,0,0,8">
+                        <Run Text="LOST sessions: " />
+                        <Run Text="{Binding LostSessions.Count, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Text="Sessions that exist in the backup but are no longer live. The cleanup likely deleted them."
+                               Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,8" />
+                    <DataGrid ItemsSource="{Binding LostSessions}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              MaxHeight="200"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                              RowBackground="Transparent"
+                              CanUserResizeRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
+                            <DataGridTextColumn Header="Project" Binding="{Binding ProjectDir}" Width="140" />
+                            <DataGridTextColumn Header="Size"
+                                Binding="{Binding Size, Converter={StaticResource BytesToHumanConverter}}" Width="80" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- DANGLING sessions -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" FontSize="14"
+                               Foreground="{DynamicResource StatusWarnBrush}" Margin="0,0,0,8">
+                        <Run Text="DANGLING sessions: " />
+                        <Run Text="{Binding DanglingSessions.Count, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Text="Sidebar records whose transcript exists nowhere (neither live nor backup)."
+                               Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,8" />
+                    <DataGrid ItemsSource="{Binding DanglingSessions}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              MaxHeight="200"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                              RowBackground="Transparent"
+                              CanUserResizeRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
+                            <DataGridTextColumn Header="Project" Binding="{Binding ProjectDir}" Width="140" />
+                            <DataGridTextColumn Header="Sidebar ID" Binding="{Binding IndexSessionId}" Width="160" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Sidebar rebuild -->
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Sidebar Rebuild" FontWeight="SemiBold" FontSize="14"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
+                    <TextBlock Text="Synthesise missing Cowork sidebar records from the catalog. Plan first, then Apply."
+                               Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,12" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <ui:Button Content="Plan sidebar rebuild"
+                                   Command="{Binding PlanRebuildCommand}"
+                                   Margin="0,0,8,0" />
+                        <ui:Button Content="Apply" Appearance="Primary"
+                                   Command="{Binding ApplyRebuildCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding RebuildStatus}"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
+
+                    <!-- Plan details when available -->
+                    <StackPanel Visibility="{Binding RebuildPlan,
+                                    Converter={StaticResource NullToVisibilityConverter}}"
+                                Margin="0,8,0,0">
+                        <TextBlock Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap">
+                            <Run Text="Records to write: " />
+                            <Run Text="{Binding RebuildPlan.ToWrite.Count, Mode=OneWay, FallbackValue=0}" />
+                            <Run Text="  |  Skipped: " />
+                            <Run Text="{Binding RebuildPlan.Skipped.Count, Mode=OneWay, FallbackValue=0}" />
+                            <Run Text="  |  Donor keys: " />
+                            <Run Text="{Binding RebuildPlan.DonorKeys, Mode=OneWay, FallbackValue=0}" />
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

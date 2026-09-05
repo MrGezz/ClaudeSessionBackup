@@ -1,0 +1,22 @@
+<Application x:Class="ClaudeSessionBackup.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--
+                    MERGE ORDER IS LOAD-BEARING. WPF-UI's own brushes bind their
+                    colour with {StaticResource}, resolved at parse time, so the
+                    CM2 restatement only wins if it is merged AFTER the
+                    dictionaries it overrides. ThemeManager replaces entries [2]
+                    and [3] in place to swap light/dark.
+                -->
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="pack://application:,,,/Themes/Charcoal.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/Themes/Semantic.Dark.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

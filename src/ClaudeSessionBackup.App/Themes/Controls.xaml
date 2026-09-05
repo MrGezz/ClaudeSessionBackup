@@ -1,0 +1,71 @@
+<!--
+    Shared converter instances and control styles, merged by the MainWindow.
+    Every key here must remain in sync with what the pages reference as
+    StaticResource. {StaticResource} resolves at LOAD time not compile time,
+    so a missing key silently compiles clean and throws XamlParseException
+    only when the page renders.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+
+    <!-- ======================== converter instances ======================== -->
+    <conv:BoolToVisibilityConverter   x:Key="BoolToVisibilityConverter" />
+    <conv:CountToVisibilityConverter  x:Key="CountToVisibilityConverter" />
+    <conv:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+    <conv:InverseBooleanConverter     x:Key="InverseBooleanConverter" />
+    <conv:BytesToHumanConverter       x:Key="BytesToHumanConverter" />
+    <conv:DurationConverter           x:Key="DurationConverter" />
+    <conv:EnumToBoolConverter         x:Key="EnumToBoolConverter" />
+    <conv:StoreStatusToBrushConverter x:Key="StoreStatusToBrushConverter" />
+    <conv:EpochMsToDateConverter      x:Key="EpochMsToDateConverter" />
+    <conv:NullToVisibilityConverter   x:Key="NullToVisibilityConverter" />
+
+    <!-- ============================== text ================================= -->
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- ============================== surface ============================== -->
+    <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- ============================ status pill ============================ -->
+    <!--
+        A rounded badge for store status and session flags. Triggers bind
+        the relevant status property, and setters use DynamicResource so
+        the pill follows theme toggles.
+    -->
+    <Style x:Key="StatusPillStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource StatusMutedFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource StatusMutedLine}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource StatusMutedBrush}" />
+    </Style>
+
+    <Style x:Key="StatusPillTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+</ResourceDictionary>

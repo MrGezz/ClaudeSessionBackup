@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What Task Scheduler runs. Separate from the WPF app so the scheduled run has
+    no window, no message pump and no chance of a modal dialog blocking a 9pm
+    backup. Do NOT set InvariantGlobalization: the TaskScheduler package's
+    Trigger type initializer calls CultureInfo.CreateSpecificCulture("en") and
+    throws under invariant mode (learned in Sync-ACC).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>ClaudeSessionBackup.Cli</AssemblyName>
+    <RootNamespace>ClaudeSessionBackup.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeSessionBackup.Core\ClaudeSessionBackup.Core.csproj" />
+  </ItemGroup>
+
+</Project>
