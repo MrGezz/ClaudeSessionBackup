@@ -109,6 +109,14 @@ internal static class ShrinkGuard
             {
                 if (excludeSet.Contains(Path.GetFileName(sd)))
                     continue;
+                // Never enter a junction or symlink: same rule as TreeScanner (a linked
+                // folder is scanned under its real path; following it can loop or be refused).
+                try
+                {
+                    if ((File.GetAttributes(sd) & FileAttributes.ReparsePoint) != 0)
+                        continue;
+                }
+                catch { continue; }
                 stack.Push(sd);
             }
         }

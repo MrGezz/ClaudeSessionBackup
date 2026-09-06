@@ -108,7 +108,7 @@ internal static class SnapshotBuilder
     private static void AddFolderToArchive(ZipArchive archive, string folderPath, string entryRoot)
     {
         var root = Path.GetFullPath(folderPath).TrimEnd(Path.DirectorySeparatorChar);
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        foreach (var file in Directory.EnumerateFiles(root, "*", TreeScanner.SafeRecursive))
         {
             var rel = file.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar);
             // Entry names use forward slashes, rooted at the store name

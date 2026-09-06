@@ -23,7 +23,8 @@ internal static class StoreCopier
         IReadOnlyList<string> excludeFiles,
         HashSet<string> excludeFullPaths,
         CancellationToken ct,
-        IProgress<LogLine>? progress)
+        IProgress<LogLine>? progress,
+        TreeScanner.SkipCallback? onSkipped = null)
     {
         Directory.CreateDirectory(dest);
 
@@ -33,7 +34,7 @@ internal static class StoreCopier
 
         // Gather all source files
         var filesToProcess = new List<(FileInfo info, string rel)>();
-        foreach (var fi in TreeScanner.EnumerateFilesExcluding(root, excludeDirs))
+        foreach (var fi in TreeScanner.EnumerateFilesExcluding(root, excludeDirs, onSkipped))
         {
             var rel = fi.FullName.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar);
             var fileName = fi.Name;
@@ -67,7 +68,8 @@ internal static class StoreCopier
         IReadOnlyList<string> excludeFiles,
         HashSet<string> excludeFullPaths,
         CancellationToken ct,
-        IProgress<LogLine>? progress)
+        IProgress<LogLine>? progress,
+        TreeScanner.SkipCallback? onSkipped = null)
     {
         Directory.CreateDirectory(dest);
 
@@ -100,7 +102,7 @@ internal static class StoreCopier
                 continue;
 
             var dirRoot = Path.GetFullPath(dirPath).TrimEnd(Path.DirectorySeparatorChar);
-            foreach (var fi in TreeScanner.EnumerateFilesExcluding(dirRoot, excludeDirs))
+            foreach (var fi in TreeScanner.EnumerateFilesExcluding(dirRoot, excludeDirs, onSkipped))
             {
                 if (secretSet.Contains(fi.Name) || excludeFileSet.Contains(fi.Name))
                     continue;

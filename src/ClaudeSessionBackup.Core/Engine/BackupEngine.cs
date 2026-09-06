@@ -99,7 +99,24 @@ public sealed partial class BackupEngine : IBackupEngine
         foreach (var store in stores)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = ProcessStore(store, options, log, quarantine, cancellationToken);
+            StoreResult result;
+            try
+            {
+                result = ProcessStore(store, options, log, quarantine, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One store must never take the run down with it: the other stores still get
+                // copied and last_run.json is still written. 2026-09-06: an I/O error raised
+                // while counting code-transcripts (a junction Windows refused to traverse)
+                // escaped ProcessStore and aborted the whole run before any manifest existed.
+                log.Log($"{store.Name}: {ex.GetType().Name}: {ex.Message}", LogLevel.Error);
+                result = new StoreResult(store.Name, StoreStatus.Error, 0, 0, 0, 0, 0, 0, 0, 0, ex.Message);
+            }
             results.Add(result);
         }
 
@@ -190,10 +207,20 @@ public sealed partial class BackupEngine : IBackupEngine
             return new StoreResult(store.Name, StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0, null);
         }
 
+        // Directories the walk does not enter (junctions, unreadable folders) are logged
+        // once per store, at the level the scanner chose: INFO for a junction whose target
+        // is inside the store (its files are copied under the real path), WARN otherwise.
+        var skippedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        TreeScanner.SkipCallback onSkipped = (path, reason, level) =>
+        {
+            if (skippedDirs.Add(path))
+                log.Log($"{store.Name}: skipped {path} - {reason}", level);
+        };
+
         // Compute live stats
         var live = store.Mode == StoreMode.Tree
-            ? TreeScanner.ScanTree(store.Source, store.ExcludeDirs)
-            : TreeScanner.ScanWhitelist(store.Source, store.Files, store.Dirs, store.ExcludeDirs);
+            ? TreeScanner.ScanTree(store.Source, store.ExcludeDirs, onSkipped)
+            : TreeScanner.ScanWhitelist(store.Source, store.Files, store.Dirs, store.ExcludeDirs, onSkipped);
 
         // Empty-source detection (tree mode only)
         if (store.Mode == StoreMode.Tree && live.Files == 0)
@@ -252,7 +279,8 @@ public sealed partial class BackupEngine : IBackupEngine
                     store.Source, dest,
                     store.ExcludeDirs, store.ExcludeFiles,
                     heldBackPaths, ct,
-                    new Progress<LogLine>(line => log.Log(line.Message, line.Level)));
+                    new Progress<LogLine>(line => log.Log(line.Message, line.Level)),
+                    onSkipped);
             }
             else
             {
@@ -261,7 +289,8 @@ public sealed partial class BackupEngine : IBackupEngine
                     store.Files, store.Dirs,
                     store.ExcludeDirs, store.ExcludeFiles,
                     heldBackPaths, ct,
-                    new Progress<LogLine>(line => log.Log(line.Message, line.Level)));
+                    new Progress<LogLine>(line => log.Log(line.Message, line.Level)),
+                    onSkipped);
             }
         }
         catch (OperationCanceledException)

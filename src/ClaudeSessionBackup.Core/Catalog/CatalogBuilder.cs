@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using ClaudeSessionBackup.Core.Engine;
 using ClaudeSessionBackup.Core.Model;
 
 namespace ClaudeSessionBackup.Core.Catalog;
@@ -354,7 +355,7 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
             // With subagents: slug/**\/subagents/*.jsonl
             if (includeSubagents)
             {
-                foreach (string subFile in Directory.EnumerateFiles(slugDir, "*.jsonl", SearchOption.AllDirectories))
+                foreach (string subFile in Directory.EnumerateFiles(slugDir, "*.jsonl", TreeScanner.SafeRecursive))
                 {
                     string relPath = Path.GetRelativePath(root, subFile).Replace('\\', '/');
                     if (!relPath.Contains("/subagents/")) continue;
@@ -486,7 +487,7 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
     private static long DirectorySize(string dir)
     {
         long total = 0;
-        foreach (string f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+        foreach (string f in Directory.EnumerateFiles(dir, "*", TreeScanner.SafeRecursive))
         {
             try { total += new FileInfo(f).Length; } catch { /* skip inaccessible */ }
         }

@@ -1,3 +1,15 @@
+# Claude Session Backup 1.0.2
+
+Released 2026-09-06. Upgrade in place with `ClaudeSessionBackup-1.0.2-Setup.exe`; close the app first,
+the installer waits on its mutex.
+
+## Fixed
+- **A junction inside a store no longer stops the backup.** The Claude harness creates directory
+  junctions inside a session's `subagents\workflows` folder; Windows refused to traverse one
+  ("untrusted mount point") and the whole run aborted before anything was written. The walk now
+  never follows junctions or symlinks (a target inside the store is copied under its real path, so
+  nothing is lost or duplicated), skips any folder it cannot read with a logged reason, and one
+  failing store can no longer abort the other twelve or the run's manifest.
 # Claude Session Backup 1.0.1
 
 Released 2026-09-06. Upgrade in place with `ClaudeSessionBackup-1.0.1-Setup.exe`; close the app first,
