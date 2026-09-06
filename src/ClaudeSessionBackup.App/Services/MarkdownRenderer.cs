@@ -23,8 +23,10 @@ namespace ClaudeSessionBackup.App.Services;
 /// <remarks>
 /// Pipeline: UseAdvancedExtensions minus anything that needs raw HTML. The AST
 /// is walked recursively; unknown node types are rendered as their literal text.
-/// Built lazily per block view model and cached, so the 18k-turn transcript does
-/// not build 18k FlowDocuments up front.
+/// Called once per VISIBLE block by <see cref="Views.MarkdownHost"/>, never
+/// cached: a FlowDocument has one owning viewer, so a cached instance breaks the
+/// recycling turn list. Live memory is therefore bounded by what is on screen
+/// rather than by everything the user has scrolled past.
 /// </remarks>
 public sealed class MarkdownRenderer
 {

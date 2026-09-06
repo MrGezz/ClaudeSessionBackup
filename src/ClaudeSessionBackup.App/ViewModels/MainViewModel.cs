@@ -145,6 +145,99 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>True when <see cref="TaskWarningText"/> is non-empty.</summary>
     public bool HasTaskWarning => !string.IsNullOrEmpty(_taskWarningText);
 
+    // ------------------------------------------------------ dashboard metrics
+    //
+    // Four numbers across the top of the Dashboard, above the store grid. The
+    // grid answers "what happened to each store"; these answer the question a
+    // user actually opens the app with - "is my data safe right now" - without
+    // reading thirteen rows. Every one is derived from StoreRows, so they are
+    // computed properties raised from the single place results land
+    // (ApplyManifest) rather than a second copy of the state that can drift.
+
+    /// <summary>Stores that hold at least one backed-up file, over the total.</summary>
+    public string MetricStoresValue =>
+        $"{StoreRows.Count(r => r.BackupFiles > 0)} / {StoreRows.Count}";
+
+    public string MetricStoresDetail
+    {
+        get
+        {
+            var absent = StoreRows.Count(r => r.IsAbsent);
+            var trouble = StoreRows.Count(r =>
+                r.Status is StoreStatus.Failed or StoreStatus.Error or StoreStatus.SourceEmptyBackupHasData ||
+                (r.Status == StoreStatus.SourceMissing && !r.Optional));
+
+            if (trouble > 0) return $"{trouble} need attention";
+            return absent > 0 ? $"{absent} optional store(s) absent" : "all stores present";
+        }
+    }
+
+    /// <summary>True when a store is failed, errored, or missing without being optional.</summary>
+    public bool MetricStoresAlert => StoreRows.Any(r =>
+        r.Status is StoreStatus.Failed or StoreStatus.Error or StoreStatus.SourceEmptyBackupHasData ||
+        (r.Status == StoreStatus.SourceMissing && !r.Optional));
+
+    /// <summary>Files the backup holds, across every store.</summary>
+    public string MetricFilesValue => StoreRows.Sum(r => (long)r.BackupFiles).ToString("N0");
+
+    public string MetricFilesDetail
+    {
+        get
+        {
+            var copied = StoreRows.Sum(r => (long)r.Copied);
+            return copied > 0 ? $"+{copied:N0} copied last run" : "nothing new last run";
+        }
+    }
+
+    /// <summary>Bytes the backup holds, across every store.</summary>
+    public string MetricSizeValue =>
+        Converters.BytesToHumanConverter.Humanize(StoreRows.Sum(r => r.BackupBytes));
+
+    public string MetricSizeDetail => _settings.Destination;
+
+    /// <summary>
+    /// Files the run refused to overwrite plus files it could not copy.
+    /// </summary>
+    /// <remarks>
+    /// Held-back files are the shrink guard doing its job - a transcript that
+    /// got SMALLER at the source was quarantined instead of overwriting a good
+    /// backup. It only ever showed up in the log, which is where a user is
+    /// least likely to look. A number that is normally 0 is worth a card
+    /// precisely because any other value means read the log.
+    /// </remarks>
+    public string MetricHeldValue =>
+        (StoreRows.Sum(r => (long)r.HeldBack) + StoreRows.Sum(r => (long)r.Failed)).ToString("N0");
+
+    public string MetricHeldDetail
+    {
+        get
+        {
+            var held = StoreRows.Sum(r => (long)r.HeldBack);
+            var failed = StoreRows.Sum(r => (long)r.Failed);
+            if (held == 0 && failed == 0) return "nothing held back";
+            if (failed == 0) return $"{held:N0} quarantined by the shrink guard";
+            if (held == 0) return $"{failed:N0} could not be copied";
+            return $"{held:N0} quarantined, {failed:N0} failed";
+        }
+    }
+
+    public bool MetricHeldAlert => StoreRows.Any(r => r.HeldBack > 0 || r.Failed > 0);
+
+    /// <summary>Re-reads every metric from StoreRows. Cheap: thirteen rows.</summary>
+    private void RaiseMetrics()
+    {
+        OnPropertyChanged(nameof(MetricStoresValue));
+        OnPropertyChanged(nameof(MetricStoresDetail));
+        OnPropertyChanged(nameof(MetricStoresAlert));
+        OnPropertyChanged(nameof(MetricFilesValue));
+        OnPropertyChanged(nameof(MetricFilesDetail));
+        OnPropertyChanged(nameof(MetricSizeValue));
+        OnPropertyChanged(nameof(MetricSizeDetail));
+        OnPropertyChanged(nameof(MetricHeldValue));
+        OnPropertyChanged(nameof(MetricHeldDetail));
+        OnPropertyChanged(nameof(MetricHeldAlert));
+    }
+
     public ICommand BackupCommand { get; }
     public ICommand VerifyCommand { get; }
     public ICommand CancelCommand { get; }
@@ -168,6 +261,16 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     private List<SessionEntry> _allSessions = new();
+
+    /// <summary>
+    /// Whether a catalog has been built at all, regardless of the search filter.
+    /// </summary>
+    /// <remarks>
+    /// Tells "no catalog yet - press Build" apart from "the catalog is there,
+    /// your search matched nothing". Raised from ApplyCatalogFilter, which is
+    /// the one place _allSessions and the filtered collection both settle.
+    /// </remarks>
+    public bool HasCatalog => _allSessions.Count > 0;
 
     public ICommand RefreshCatalogCommand { get; }
     public ICommand OpenTranscriptFolderCommand { get; }
@@ -313,6 +416,43 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Window title: includes "DEMO" when in demo mode.</summary>
     public string WindowTitle => IsDemo ? "Claude Session Backup  -  DEMO" : "Claude Session Backup";
+
+    /// <summary>The running build's version, shown in the status strip.</summary>
+    /// <remarks>
+    /// Read from the assembly rather than a constant so it cannot disagree with
+    /// what Release.ps1 stamped into Directory.Build.props, the .iss and the
+    /// README - the packaging gate checks those four agree, and a hand-written
+    /// fifth copy here would be the one nothing checks.
+    ///
+    /// InformationalVersion is the one the SDK derives from &lt;Version&gt;; it
+    /// can carry a "+&lt;sha&gt;" build-metadata suffix, which is noise in a
+    /// status bar, so only the part before '+' is kept.
+    ///
+    /// Instance rather than static: a WPF Binding path resolves instance members
+    /// on the DataContext, so a static property would silently bind to nothing.
+    /// </remarks>
+    public string AppVersion => _appVersion;
+
+    private static readonly string _appVersion = ResolveVersion();
+
+    private static string ResolveVersion()
+    {
+        var asm = System.Reflection.Assembly.GetExecutingAssembly();
+        var info = (System.Reflection.AssemblyInformationalVersionAttribute?)
+            Attribute.GetCustomAttribute(
+                asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+
+        var text = info?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            var plus = text.IndexOf('+');
+            return plus > 0 ? text[..plus] : text;
+        }
+
+        // Falls back to the four-part assembly version, trimmed to major.minor.patch.
+        var v = asm.GetName().Version;
+        return v is null ? "" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
 
     // ----------------------------------------------------------------- ctor
 
@@ -533,6 +673,8 @@ public sealed class MainViewModel : ViewModelBase
         {
             StoreRows.Add(new StoreRowViewModel(def));
         }
+
+        RaiseMetrics();
     }
 
     /// <summary>
@@ -560,6 +702,10 @@ public sealed class MainViewModel : ViewModelBase
         {
             UncoveredDataText = "";
         }
+
+        // The metric cards read StoreRows, which the loop above has just changed
+        // row by row; nothing else raises them.
+        RaiseMetrics();
     }
 
     private void LoadLastRunSummary()
@@ -680,6 +826,11 @@ public sealed class MainViewModel : ViewModelBase
                 CatalogSessions.Add(s);
             }
         }
+
+        // CatalogSessions is the FILTERED view, so an empty grid means either
+        // "never built" or "search matched nothing" - two different answers, and
+        // the page shows a different empty state for each.
+        OnPropertyChanged(nameof(HasCatalog));
     }
 
     private void UpdateRestoreLists()

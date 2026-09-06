@@ -78,7 +78,9 @@ dataset (no live stores read):
 * **Settings** - destination, include subagents, snapshot retention, theme.
 
 A fault while the window loads is written to `%APPDATA%\ClaudeSessionBackup\startup-error.log` and the
-process exits (no invisible instance holding the single-instance mutex).
+process exits (no invisible instance holding the single-instance mutex). A fault *after* the window is up
+shows a dialog and appends the stack trace to `%APPDATA%\ClaudeSessionBackup\error.log` (capped at 256 KB),
+so a crash you clicked away is still diagnosable.
 
 ## Stores (source -> `<destination>\live\<name>`)
 
@@ -141,9 +143,9 @@ dotnet test  ClaudeSessionBackup.slnx -c Release
 powershell -ExecutionPolicy Bypass -File .\tools\Verify.ps1
 ```
 
-Seven gates: build (0 errors, nullable warnings are errors), tests, CLI smoke (verify, backup, catalog, rebuild dry run against a temp destination — read-only on the live stores), theme-key parity, launch gate (window CLASS `HwndWrapper[...]`, not a `#32770` dialog; startup-error.log must not appear), packaging (Check-Packaging.ps1 static checks, then a framework-dependent Package.ps1 + Make-Installer.ps1 dry build into a temp folder, never into `dist`), and privacy (Check-Privacy.ps1 scans every tracked text file for the denylist and verifies every screenshot against the SHA-256 recorded in the `.demo` marker).
+Seven gates: build (0 errors, nullable warnings are errors), tests, CLI smoke (verify, backup, catalog, rebuild dry run against a temp destination — read-only on the live stores), theme-key parity, launch gate (window CLASS `HwndWrapper[...]`, not a `#32770` dialog; startup-error.log must not appear; then Check-TranscriptScroll.ps1 pages the demo transcript to prove the window survives being used), packaging (Check-Packaging.ps1 static checks, then a framework-dependent Package.ps1 + Make-Installer.ps1 dry build into a temp folder, never into `dist`), and privacy (Check-Privacy.ps1 scans every tracked text file for the denylist and verifies every screenshot against the SHA-256 recorded in the `.demo` marker).
 
-The launch gate checks that no `startup-error.log` appeared — a clean build proves nothing about XAML resource resolution. Close the app before building: a running exe locks the App project's output.
+The launch gate checks that no `startup-error.log` appeared — a clean build proves nothing about XAML resource resolution — and then drives the Transcript page, because opening is not the same as working: the turn list is the one place the app virtualises with container recycling, and the one place it has crashed. Close the app before building: a running exe locks the App project's output.
 
 Icon: `python tools\icon_source.py && python tools\build_icon.py` regenerates `src\ClaudeSessionBackup.App\Assets\app.ico`
 (a speech bubble with a cut-out down-arrow on the CM2 accent tile; 16 px is the design target). The
@@ -153,7 +155,7 @@ per-size renders under `build\icon\` are intermediates and are git-ignored.
 
 ### Quick start (installer)
 
-Download `ClaudeSessionBackup-1.0.2-Setup.exe` from the repository's **Releases page** and run it.
+Download `ClaudeSessionBackup-1.0.3-Setup.exe` from the repository's **Releases page** and run it.
 
 The wizard installs per-user to `%LOCALAPPDATA%\Programs\ClaudeSessionBackup` — no administrator rights
 needed or requested. It creates a Start Menu entry; the desktop shortcut and the daily backup task are
@@ -175,7 +177,7 @@ The installer is self-contained — no .NET installation required.
 
 ### Quick start (zip)
 
-1. Download `ClaudeSessionBackup-1.0.2-win-x64.zip` from the Releases page.
+1. Download `ClaudeSessionBackup-1.0.3-win-x64.zip` from the Releases page.
 2. Right-click the zip > **Properties** > tick **Unblock** > OK. (Windows marks
    downloaded archives as blocked; unblocking before extracting clears the mark on
    all files inside. Unblocking after extraction does not.)
@@ -229,7 +231,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\Package.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\Make-Installer.ps1 -SkipPackage
 ```
 
-`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.2-win-x64.zip` (self-contained, ~65 MB).
+`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.3-win-x64.zip` (self-contained, ~65 MB).
 Running it first and then pointing `Make-Installer.ps1 -SkipPackage` at that exact payload is
 what guarantees the zip and the Setup.exe are the same build. `Make-Installer.ps1` also writes
 `dist\SHA256SUMS.txt` for both files (LF line endings, the format `sha256sum -c` reads).

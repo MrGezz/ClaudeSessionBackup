@@ -241,6 +241,42 @@ public partial class App : Application
             System.Windows.MessageBoxImage.Error);
     }
 
+    /// <summary>
+    /// Appends a fault that happened AFTER the window existed to
+    /// %APPDATA%\ClaudeSessionBackup\error.log.
+    /// </summary>
+    /// <remarks>
+    /// Capped at 256 KB by truncating on the next write rather than rolling
+    /// files: this is a diagnostic breadcrumb, not telemetry, and a tool whose
+    /// whole purpose is not to lose data should not quietly grow a log forever.
+    /// Nothing here is allowed to throw - the error reporter must never become
+    /// the error.
+    /// </remarks>
+    private static void LogRuntimeError(Exception ex)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "ClaudeSessionBackup");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "error.log");
+
+            if (File.Exists(path) && new FileInfo(path).Length > 256 * 1024)
+            {
+                File.Delete(path);
+            }
+
+            File.AppendAllText(path,
+                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  unhandled on the UI thread{Environment.NewLine}" +
+                ex + Environment.NewLine + Environment.NewLine);
+        }
+        catch
+        {
+            // Disk full, permissions, a locked file: the dialog still shows.
+        }
+    }
+
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         if (MainWindow is null)
@@ -252,6 +288,15 @@ public partial class App : Application
         }
 
         e.Handled = true;
+
+        // Write BEFORE the dialog, and write every occurrence including the ones
+        // suppressed below. Until now a fault after startup produced a message
+        // box and nothing else: the user clicked OK and the stack trace was gone,
+        // which is exactly the position the 2026-09-06 transcript crash left us
+        // in - a one-line message and no way to see where it came from.
+        // Separate file from startup-error.log on purpose: the launch gate fails
+        // on that one, and a crash hours into a session is not a startup fault.
+        LogRuntimeError(e.Exception);
 
         if (_showingError)
         {

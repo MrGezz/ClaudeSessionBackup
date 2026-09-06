@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -51,13 +52,22 @@
                 </StackPanel>
             </Border>
 
-            <!-- Catalog-not-loaded hint -->
-            <Border Style="{StaticResource CardStyle}"
-                    Visibility="{Binding CatalogSessions.Count,
-                        Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=invert}">
-                <TextBlock Text="Build the catalog first (Catalog page > Refresh) to detect lost and dangling sessions."
-                           Style="{StaticResource FieldLabelStyle}" FontStyle="Italic" />
-            </Border>
+            <!-- Catalog-not-loaded hint. Compact: this sits above the rebuild
+                 section on a scrolling page, so the full-height panel would push
+                 the actual controls off screen. -->
+            <ctl:EmptyState Glyph="&#xE8F1;"
+                            Title="Catalog needed"
+                            Body="Lost and dangling sessions are found by comparing the catalog against the live index. Build the catalog on the Catalog page, then come back."
+                            Tone="Info"
+                            Compact="True"
+                            Margin="0,0,0,12"
+                            Visibility="{Binding CatalogSessions.Count,
+                                Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=invert}">
+                <ctl:EmptyState.Actions>
+                    <ui:Button Content="Build catalog"
+                               Command="{Binding RefreshCatalogCommand}" />
+                </ctl:EmptyState.Actions>
+            </ctl:EmptyState>
 
             <!-- LOST sessions -->
             <Border Style="{StaticResource CardStyle}">

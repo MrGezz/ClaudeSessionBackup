@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -37,9 +38,63 @@
                        Command="{Binding RefreshCatalogCommand}" />
         </Grid>
 
+        <!-- Empty states. Before the first Refresh the grid renders as a bare
+             header row over nothing, which reads as a broken page rather than
+             as "no catalog yet" - so the grid is collapsed and one of these
+             takes its place. CatalogSessions is the FILTERED collection, so an
+             empty grid has two very different causes and gets two answers. -->
+
+        <!-- Never built: offer the command that fixes it. -->
+        <ctl:EmptyState Grid.Row="2"
+                        Glyph="&#xE8F1;"
+                        Title="No catalog yet"
+                        Body="The catalog lists every session found in the live stores and in the backup. Build it once, then search it here and open any transcript."
+                        Tone="Info"
+                        VerticalAlignment="Top">
+            <ctl:EmptyState.Style>
+                <Style TargetType="ctl:EmptyState">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasCatalog}" Value="False">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ctl:EmptyState.Style>
+            <ctl:EmptyState.Actions>
+                <ui:Button Content="Build catalog" Appearance="Primary"
+                           Command="{Binding RefreshCatalogCommand}" />
+            </ctl:EmptyState.Actions>
+        </ctl:EmptyState>
+
+        <!-- Built, but the search filtered everything out. -->
+        <ctl:EmptyState Grid.Row="2"
+                        Glyph="&#xE721;"
+                        Title="No sessions match"
+                        Body="Nothing in the catalog matches that search. Try part of a title, a project folder name, or a session ID."
+                        Tone="Neutral"
+                        VerticalAlignment="Top">
+            <ctl:EmptyState.Style>
+                <Style TargetType="ctl:EmptyState">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HasCatalog}" Value="True" />
+                                <Condition Binding="{Binding CatalogSessions.Count}" Value="0" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ctl:EmptyState.Style>
+        </ctl:EmptyState>
+
         <!-- Session grid -->
         <DataGrid Grid.Row="2"
                   x:Name="CatalogGrid"
+                  Visibility="{Binding CatalogSessions.Count,
+                      Converter={StaticResource CountToVisibilityConverter}}"
                   ItemsSource="{Binding CatalogSessions}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"

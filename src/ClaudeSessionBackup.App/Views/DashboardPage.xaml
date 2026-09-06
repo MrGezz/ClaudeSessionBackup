@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls"
              xmlns:model="clr-namespace:ClaudeSessionBackup.Core.Model;assembly=ClaudeSessionBackup.Core">
 
     <UserControl.Resources>
@@ -20,6 +21,7 @@
              the log below the bottom edge with nothing to scroll. -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="2*" MinHeight="220" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -30,8 +32,70 @@
         <!-- Header -->
         <TextBlock Grid.Row="0" Text="Dashboard" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
+        <!-- Metric row: the four numbers that answer "is my data safe", above
+             the grid that says what happened store by store. Held back is 0 on
+             a healthy run, and that is the point - any other value means the
+             shrink guard stopped an overwrite and the log is worth reading. -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ctl:MetricCard Grid.Column="0" Margin="0,0,8,0"
+                            Glyph="&#xE81E;"
+                            Label="Stores backed up"
+                            Value="{Binding MetricStoresValue}"
+                            Detail="{Binding MetricStoresDetail}">
+                <ctl:MetricCard.Style>
+                    <Style TargetType="ctl:MetricCard">
+                        <Setter Property="Tone" Value="Success" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MetricStoresAlert}" Value="True">
+                                <Setter Property="Tone" Value="Danger" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ctl:MetricCard.Style>
+            </ctl:MetricCard>
+
+            <ctl:MetricCard Grid.Column="1" Margin="4,0,4,0"
+                            Glyph="&#xE8C8;"
+                            Label="Files in backup"
+                            Value="{Binding MetricFilesValue}"
+                            Detail="{Binding MetricFilesDetail}"
+                            Tone="Info" />
+
+            <ctl:MetricCard Grid.Column="2" Margin="4,0,4,0"
+                            Glyph="&#xEA35;"
+                            Label="Backup size"
+                            Value="{Binding MetricSizeValue}"
+                            Detail="{Binding MetricSizeDetail}"
+                            ToolTip="{Binding MetricSizeDetail}"
+                            Tone="Info" />
+
+            <ctl:MetricCard Grid.Column="3" Margin="8,0,0,0"
+                            Glyph="&#xE7EF;"
+                            Label="Held back"
+                            Value="{Binding MetricHeldValue}"
+                            Detail="{Binding MetricHeldDetail}">
+                <ctl:MetricCard.Style>
+                    <Style TargetType="ctl:MetricCard">
+                        <Setter Property="Tone" Value="Neutral" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MetricHeldAlert}" Value="True">
+                                <Setter Property="Tone" Value="Warning" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ctl:MetricCard.Style>
+            </ctl:MetricCard>
+        </Grid>
+
         <!-- Store table -->
-        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
             <DataGrid ItemsSource="{Binding StoreRows}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
@@ -159,7 +223,7 @@
         </Border>
 
         <!-- Last run summary + task status -->
-        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+        <Border Grid.Row="3" Style="{StaticResource CardStyle}">
             <StackPanel>
                 <TextBlock Text="{Binding LastRunSummary}"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
@@ -170,7 +234,7 @@
         </Border>
 
         <!-- Warnings, each shown only when it has something to say -->
-        <StackPanel Grid.Row="3">
+        <StackPanel Grid.Row="4">
             <!-- Store discovery: uncovered Claude data roots were found -->
             <Border Background="{DynamicResource StatusWarnFill}"
                     BorderBrush="{DynamicResource StatusWarnLine}"
@@ -198,7 +262,7 @@
         </StackPanel>
 
         <!-- Action buttons -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{DynamicResource CardBrush}"
                 BorderBrush="{DynamicResource PanelLineBrush}"
                 BorderThickness="1" CornerRadius="8"
@@ -219,7 +283,7 @@
         </Border>
 
         <!-- Log pane: monospaced, scrollable -->
-        <Border Grid.Row="5" Style="{StaticResource CardStyle}"
+        <Border Grid.Row="6" Style="{StaticResource CardStyle}"
                 Background="{DynamicResource LogBackgroundBrush}"
                 Padding="8">
             <ListBox ItemsSource="{Binding LogLines}"

@@ -346,7 +346,11 @@ if ($SkipLaunch) {
             Warn 'Close it (check the notification area) and re-run.'
         } else {
             # Clear the startup error log so its presence after launch is definitive.
-            $startupLog = Join-Path $env:APPDATA 'ClaudeSessionBackup\logs\startup-error.log'
+            # NO logs\ segment. App.xaml.cs ReportStartupFailure writes to
+            # %APPDATA%\ClaudeSessionBackup\startup-error.log; this line said
+            # ...\logs\startup-error.log, so the check below watched a path the
+            # app never writes and could not fail however badly startup broke.
+            $startupLog = Join-Path $env:APPDATA 'ClaudeSessionBackup\startup-error.log'
             Remove-Item $startupLog -ErrorAction SilentlyContinue
 
             $proc = Start-Process -FilePath $appExe -PassThru
@@ -385,6 +389,25 @@ if ($SkipLaunch) {
 
                 # Only kill the process this gate started.
                 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # --- 5b: the window survives being USED -------------------------------
+        # Opening is not the same as working. Check-TranscriptScroll launches its
+        # own --demo instance and pages the turn list, which is the one place this
+        # app virtualises with recycling - and the one place it has crashed
+        # (2026-09-06, cached FlowDocument handed to a second viewer). It must run
+        # AFTER the process above is stopped: it refuses to start beside another
+        # instance so it can never kill the user's own window.
+        $scrollScript = Join-Path $PSScriptRoot 'Check-TranscriptScroll.ps1'
+        if (-not (Test-Path $scrollScript)) {
+            Warn "Check-TranscriptScroll.ps1 not found at $scrollScript - SKIPPED"
+        } else {
+            Start-Sleep -Milliseconds 800
+            & $scrollScript -Configuration $Configuration
+            if ($LASTEXITCODE -ne 0) {
+                if ($failed -notcontains 'launch') { $failed += 'launch' }
+                Fail 'Check-TranscriptScroll.ps1 reported a fault'
             }
         }
     }

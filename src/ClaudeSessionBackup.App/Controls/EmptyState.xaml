@@ -1,0 +1,125 @@
+<UserControl x:Class="ClaudeSessionBackup.App.Controls.EmptyState"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls">
+    <!--
+        A placeholder panel for "there is nothing here yet" - a tinted glyph tile
+        over a title, one explanatory line, and optional actions.
+
+        A UserControl carrying its own ControlTemplate, not a lookless Control:
+        this app has no Generic.xaml and merges its shared styles per PAGE, so an
+        implicit style would silently render blank in any page that forgot the
+        merge. The template is inline because Style.Triggers cannot use
+        TargetName - only ControlTemplate.Triggers can - and the tone variants
+        have to retarget the shell, the tile and the glyph together.
+
+        Tone maps onto the five Status* brush TRIPLES both semantic dictionaries
+        already define (ink / 10% fill / 45% line), so this adds no theme key and
+        the parity gate is unaffected. Every brush stays a DynamicResource so the
+        panel follows the light/dark toggle.
+    -->
+    <UserControl.Template>
+        <ControlTemplate TargetType="ctl:EmptyState">
+            <Border x:Name="Shell"
+                    CornerRadius="8"
+                    BorderThickness="1"
+                    Background="{DynamicResource StatusMutedFill}"
+                    BorderBrush="{DynamicResource StatusMutedLine}"
+                    Padding="32" MinHeight="300">
+                <StackPanel MaxWidth="520"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+
+                    <!-- Glyph tile. The icon FontFamily lives on the TextBlock
+                         only: set on the Border it would inherit into any
+                         ToolTip and render there as squares. -->
+                    <Border x:Name="Tile"
+                            Width="48" Height="48"
+                            CornerRadius="8"
+                            BorderThickness="1"
+                            Background="{DynamicResource StatusMutedFill}"
+                            BorderBrush="{DynamicResource StatusMutedLine}"
+                            HorizontalAlignment="Center">
+                        <TextBlock x:Name="Glyph"
+                                   Text="{TemplateBinding Glyph}"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="20"
+                                   Foreground="{DynamicResource StatusMutedBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+
+                    <TextBlock x:Name="TitleText"
+                               Text="{TemplateBinding Title}"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextMainBrush}"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Margin="0,16,0,0" />
+
+                    <TextBlock x:Name="BodyText"
+                               Text="{TemplateBinding Body}"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
+
+                    <ContentPresenter x:Name="Actions"
+                                      Content="{TemplateBinding Actions}"
+                                      HorizontalAlignment="Center"
+                                      Margin="0,16,0,0" />
+                </StackPanel>
+            </Border>
+
+            <ControlTemplate.Triggers>
+                <!-- ============================= tone ============================ -->
+                <Trigger Property="Tone" Value="Info">
+                    <Setter TargetName="Shell" Property="Background" Value="{DynamicResource StatusVioletFill}" />
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource StatusVioletLine}" />
+                    <Setter TargetName="Tile"  Property="Background" Value="{DynamicResource StatusVioletFill}" />
+                    <Setter TargetName="Tile"  Property="BorderBrush" Value="{DynamicResource StatusVioletLine}" />
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource StatusVioletBrush}" />
+                </Trigger>
+                <Trigger Property="Tone" Value="Success">
+                    <Setter TargetName="Shell" Property="Background" Value="{DynamicResource StatusOkFill}" />
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource StatusOkLine}" />
+                    <Setter TargetName="Tile"  Property="Background" Value="{DynamicResource StatusOkFill}" />
+                    <Setter TargetName="Tile"  Property="BorderBrush" Value="{DynamicResource StatusOkLine}" />
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource StatusOkBrush}" />
+                </Trigger>
+                <Trigger Property="Tone" Value="Warning">
+                    <Setter TargetName="Shell" Property="Background" Value="{DynamicResource StatusWarnFill}" />
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource StatusWarnLine}" />
+                    <Setter TargetName="Tile"  Property="Background" Value="{DynamicResource StatusWarnFill}" />
+                    <Setter TargetName="Tile"  Property="BorderBrush" Value="{DynamicResource StatusWarnLine}" />
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource StatusWarnBrush}" />
+                </Trigger>
+                <Trigger Property="Tone" Value="Danger">
+                    <Setter TargetName="Shell" Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                    <Setter TargetName="Tile"  Property="Background" Value="{DynamicResource StatusDangerFill}" />
+                    <Setter TargetName="Tile"  Property="BorderBrush" Value="{DynamicResource StatusDangerLine}" />
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource StatusDangerBrush}" />
+                </Trigger>
+
+                <!-- ============================ compact ========================== -->
+                <Trigger Property="Compact" Value="True">
+                    <Setter TargetName="Shell" Property="Padding" Value="20" />
+                    <Setter TargetName="Shell" Property="MinHeight" Value="140" />
+                    <Setter TargetName="Tile" Property="Width" Value="40" />
+                    <Setter TargetName="Tile" Property="Height" Value="40" />
+                    <Setter TargetName="Glyph" Property="FontSize" Value="16" />
+                    <Setter TargetName="TitleText" Property="FontSize" Value="14" />
+                    <Setter TargetName="TitleText" Property="Margin" Value="0,12,0,0" />
+                    <Setter TargetName="BodyText" Property="FontSize" Value="12" />
+                    <Setter TargetName="BodyText" Property="Margin" Value="0,6,0,0" />
+                    <Setter TargetName="Actions" Property="Margin" Value="0,12,0,0" />
+                </Trigger>
+
+                <!-- No actions supplied: drop the gap the presenter would leave. -->
+                <Trigger Property="Actions" Value="{x:Null}">
+                    <Setter TargetName="Actions" Property="Margin" Value="0" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </UserControl.Template>
+</UserControl>

@@ -1,2 +1,25 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Line endings.
+#
+# Every text file in this working tree is LF today, but the machine has
+# core.autocrlf=true, so without an explicit eol the next checkout would rewrite
+# all of them to CRLF - which is why the editor warns "this file uses LF but Git
+# is configured to convert them to CRLF" on files nobody has touched. Pinning
+# eol=lf stores LF and checks LF back out, so the tree stops changing under
+# itself and a diff only ever shows real edits.
+* text=auto eol=lf
+
+# ...except the files a Windows program parses itself rather than Git.
+# cmd.exe mis-handles LF-only labels and multi-line blocks, and these two ship
+# inside the release zip, where a recipient double-clicks them.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Inno Setup script: ISCC is Windows-only and its own editor writes CRLF.
+*.iss text eol=crlf
+
+# Never normalise these - a byte changed in a PNG breaks the screenshot hashes
+# in docs\screenshots\.demo that the privacy gate checks.
+*.png binary
+*.ico binary
+*.zip binary
+*.exe binary

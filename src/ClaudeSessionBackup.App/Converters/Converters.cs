@@ -20,6 +20,18 @@ public sealed class BytesToHumanConverter : IValueConverter
             bytes = value is int i ? i : 0;
         }
 
+        return Humanize(bytes);
+    }
+
+    /// <summary>
+    /// The same formatting the converter applies, callable from a view model.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so the Dashboard metric cards, which build their text in C#,
+    /// cannot drift from the sizes the grid shows through the converter.
+    /// </remarks>
+    public static string Humanize(long bytes)
+    {
         if (bytes <= 0)
         {
             return "0 B";

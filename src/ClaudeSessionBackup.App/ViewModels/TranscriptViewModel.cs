@@ -14,8 +14,8 @@ namespace ClaudeSessionBackup.App.ViewModels;
 
 /// <summary>
 /// View model for a single transcript block (text, thinking, tool call, etc.)
-/// inside a <see cref="TurnViewModel"/>. Owns the lazily-built FlowDocument
-/// for Markdown text blocks, the decoded image, and the expand/collapse state.
+/// inside a <see cref="TurnViewModel"/>. Renders the Markdown on demand, owns
+/// the decoded image, and holds the expand/collapse state.
 /// </summary>
 public sealed class BlockViewModel : ViewModelBase
 {
@@ -109,24 +109,21 @@ public sealed class BlockViewModel : ViewModelBase
 
     public bool HasImageBytes => _block.ImageBytes is { Length: > 0 };
 
-    /// <summary>Lazily-built FlowDocument for Markdown text blocks.</summary>
-    private System.Windows.Documents.FlowDocument? _flowDoc;
-    private bool _flowDocBuilt;
-    public System.Windows.Documents.FlowDocument? FlowDocument
-    {
-        get
-        {
-            if (!_flowDocBuilt)
-            {
-                _flowDocBuilt = true;
-                if (Kind == TranscriptBlockKind.Text && !string.IsNullOrEmpty(Text))
-                {
-                    _flowDoc = _renderer.Render(Text);
-                }
-            }
-            return _flowDoc;
-        }
-    }
+    /// <summary>
+    /// Renders this block's Markdown into a NEW <see cref="System.Windows.Documents.FlowDocument"/>,
+    /// or null when the block is not Markdown text.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT cached. A FlowDocument belongs to one viewer, and the
+    /// recycling turn list hands the same block to different viewers over its
+    /// life; a cached instance made the second viewer throw "Document belongs to
+    /// another FlowDocumentScrollViewer already". Called by
+    /// <see cref="Views.MarkdownHost"/>, which owns the attach/release rules.
+    /// </remarks>
+    public System.Windows.Documents.FlowDocument? BuildDocument() =>
+        Kind == TranscriptBlockKind.Text && !string.IsNullOrEmpty(Text)
+            ? _renderer.Render(Text)
+            : null;
 
     private bool _isExpanded;
     public bool IsExpanded

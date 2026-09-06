@@ -4,6 +4,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters"
              xmlns:vm="clr-namespace:ClaudeSessionBackup.App.ViewModels"
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls"
              xmlns:local="clr-namespace:ClaudeSessionBackup.App.Views">
     <!-- DataContext intentionally NOT set here: the Style DataTrigger in MainWindow.xaml
          binds to {Binding CurrentPage} which lives on MainViewModel, the inherited DataContext.
@@ -18,9 +19,14 @@
 
             <!-- ================== block data templates =================== -->
 
-            <!-- Text block: rendered Markdown via FlowDocument -->
+            <!-- Text block: rendered Markdown via FlowDocument.
+                 The document is NOT bound. A FlowDocument has one owning viewer,
+                 and this list recycles its containers, so binding a per-block
+                 instance handed the same document to a second live viewer and
+                 threw XamlParseException. MarkdownHost renders one document per
+                 attach and clears it on unload - see MarkdownHost.cs. -->
             <DataTemplate x:Key="TextBlockTemplate" DataType="{x:Type vm:BlockViewModel}">
-                <FlowDocumentScrollViewer Document="{Binding FlowDocument, Mode=OneTime}"
+                <FlowDocumentScrollViewer local:MarkdownHost.Block="{Binding}"
                                           VerticalScrollBarVisibility="Disabled"
                                           HorizontalScrollBarVisibility="Disabled"
                                           Margin="0,0,0,2"
@@ -416,11 +422,13 @@
                        Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}" />
 
             <!-- Empty state -->
-            <TextBlock Text="Select a session from the Catalog or Restore page to view its transcript."
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       FontStyle="Italic" Margin="0,20,0,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
+            <ctl:EmptyState Glyph="&#xE8BD;"
+                            Title="No transcript open"
+                            Body="Open a session from the Catalog, or from the lost-session list on the Restore page. Transcripts are read from the backup when one exists, and from the live store otherwise."
+                            Tone="Info"
+                            Margin="0,20,0,0">
+                <ctl:EmptyState.Style>
+                    <Style TargetType="ctl:EmptyState">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <MultiDataTrigger>
@@ -432,8 +440,8 @@
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                </ctl:EmptyState.Style>
+            </ctl:EmptyState>
         </StackPanel>
 
         <!-- ==================== transcript turn list ==================== -->

@@ -1,3 +1,42 @@
+# Claude Session Backup 1.0.3
+
+Released 2026-09-07. Upgrade in place with `ClaudeSessionBackup-1.0.3-Setup.exe`; close the app first,
+the installer waits on its mutex.
+
+## Fixed
+
+- **The Transcript page crashed when you scrolled.** Opening a transcript and scrolling a text turn out
+  of view and back raised "Claude Session Backup hit an unexpected error - Document belongs to another
+  FlowDocumentScrollViewer already". A rendered Markdown document belongs to exactly one viewer, and the
+  turn list recycles its rows as they leave the screen, so the row that was put away kept hold of the
+  document and the row that came back could not have it. Each row now renders its own copy and releases
+  it on the way out. Long transcripts also use less memory, because only what is on screen is held.
+- **A crash after startup left nothing to report.** The error box was all there was; its details went
+  when you clicked OK. Faults are now appended to `%APPDATA%\ClaudeSessionBackup\error.log` (kept under
+  256 KB) before the box appears, so a crash can be diagnosed after the fact.
+- **Settings** was the only page whose cards stopped short of the window edge.
+
+## Added
+
+- **Four figures across the top of the Dashboard**: stores backed up, files in backup, backup size, and
+  **held back** - the files the shrink guard refused to overwrite plus any it could not copy. That last
+  number is 0 on a healthy run and only ever appeared in the log before.
+- **Proper empty states.** The Catalog now says whether it has never been built (with a button to build
+  it) or whether your search simply matched nothing; Restore and Transcript explain what to do next
+  instead of showing a bare sentence or an empty grid.
+- **The running version** is shown in the status strip, and a card in the sidebar states the rule the
+  tool is built on: nothing at the destination is ever deleted.
+
+## Changed
+
+- `tools\Check-TranscriptScroll.ps1` runs inside Verify's launch gate and drives the Transcript page in
+  demo mode, so the crash above cannot come back unnoticed. Opening the window was previously the whole
+  of that gate.
+- The launch gate's startup-error check watched a path the app never writes (`...\logs\startup-error.log`
+  rather than `...\startup-error.log`), so it could not have failed however badly startup broke.
+- `.gitattributes` now pins line endings: LF in the working tree, CRLF for `.cmd`, `.bat` and `.iss`
+  (cmd.exe mis-parses LF-only labels, and both scripts ship in the zip), binary for images and archives.
+
 # Claude Session Backup 1.0.2
 
 Released 2026-09-06. Upgrade in place with `ClaudeSessionBackup-1.0.2-Setup.exe`; close the app first,

@@ -19,7 +19,11 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   Background="{DynamicResource WindowBrush}">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+        <!-- Fills the content area, like every other page. It used to be
+             MaxWidth="760" HorizontalAlignment="Left", which kept the form to a
+             readable measure but left a 250 px gutter down the right and made
+             Settings the only page whose cards did not reach the edge. -->
+        <StackPanel>
             <TextBlock Text="Settings" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
             <!-- ============================================================== -->
