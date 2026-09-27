@@ -21,6 +21,11 @@
     <conv:EpochMsToDateConverter      x:Key="EpochMsToDateConverter" />
     <conv:NullToVisibilityConverter   x:Key="NullToVisibilityConverter" />
 
+    <!-- The site grammar's kicker (2026-09-27): CSS text-transform:uppercase has
+         no WPF property, so BOUND labels pass through this at their binding.
+         Literal kickers are simply written in capitals. -->
+    <conv:UpperCaseConverter          x:Key="Upper" />
+
     <!-- ============================== text ================================= -->
     <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="18" />
@@ -36,6 +41,31 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
     </Style>
 
+    <!-- Site look (MrGezz.github.io grammar, 2026-09-27), referenced from the IcZ
+         Patcher's theme layer rather than copied: a card's key label is an 11px
+         bold KICKER in capitals (.card .k), a headline figure is 26px bold in
+         the main ink (.stat .n - plain ink on purpose, a gradient is a fill
+         only), and the line under it is 11.5px secondary (.stat .d).
+         Letter-spacing has no WPF property and is not mirrored. -->
+    <Style x:Key="CardKeyStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="BandValueStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMainBrush}" />
+    </Style>
+
+    <Style x:Key="BandDetailStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+
     <!-- ============================== surface ============================== -->
     <Style x:Key="CardStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource CardBrush}" />
@@ -44,6 +74,14 @@
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16" />
         <Setter Property="Margin" Value="0,0,0,12" />
+        <Style.Triggers>
+            <!-- .glass-card:hover: the border takes the accent edge under the
+                 pointer. A Trigger, never a Storyboard; the site's lift and glow
+                 are not mirrored. Every card in this style inherits it. -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource AppAccentEdgeBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ============================ glyph button ========================== -->

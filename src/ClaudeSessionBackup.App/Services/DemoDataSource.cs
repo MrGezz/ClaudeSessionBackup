@@ -22,7 +22,8 @@ internal static class DemoDataSource
 
     /// <summary>
     /// Builds a <see cref="RunManifest"/> that populates the Dashboard table
-    /// with 13 plausible rows, four of which are optional/absent MSIX stores.
+    /// with 13 plausible rows, six of which are optional and absent: the two
+    /// cowork3p-* stores and the four msix-* stores.
     /// </summary>
     public static RunManifest BuildManifest()
     {

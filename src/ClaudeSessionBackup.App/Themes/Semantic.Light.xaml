@@ -42,4 +42,39 @@
     <SolidColorBrush x:Key="TextMainBrush"       Color="#FF263238" />
     <SolidColorBrush x:Key="TextSecondaryBrush"  Color="#FF546E7A" />
     <SolidColorBrush x:Key="TextTertiaryBrush"   Color="#FF607D8B" />
+
+    <!-- Site look - the seven keys Semantic.Dark.xaml documents, in the light
+         palette: accent #0097A7, violet #5E35B1, grid lines are the main ink
+         at 6% instead of the dark theme's blue-grey. -->
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#FF0097A7" Offset="0" />
+        <GradientStop Color="#FF5E35B1" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentGradientVerticalBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FF0097A7" Offset="0" />
+        <GradientStop Color="#FF5E35B1" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentBrandGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF0097A7" Offset="0" />
+        <GradientStop Color="#FF00838F" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="AppAccentInkBrush"   Color="#FF0B0E14" />
+    <SolidColorBrush x:Key="AppAccentEdgeBrush"  Color="#730097A7" />
+    <SolidColorBrush x:Key="GridLineBrush"       Color="#0F263238" />
+    <DrawingBrush x:Key="GraphPaperBrush" TileMode="Tile" Viewport="0,0,26,26" ViewportUnits="Absolute"
+                  Stretch="None" AlignmentX="Left" AlignmentY="Top">
+        <DrawingBrush.Drawing>
+            <GeometryDrawing>
+                <GeometryDrawing.Geometry>
+                    <GeometryGroup>
+                        <LineGeometry StartPoint="0.5,0" EndPoint="0.5,26" />
+                        <LineGeometry StartPoint="0,0.5" EndPoint="26,0.5" />
+                    </GeometryGroup>
+                </GeometryDrawing.Geometry>
+                <GeometryDrawing.Pen>
+                    <Pen Brush="{StaticResource GridLineBrush}" Thickness="1" />
+                </GeometryDrawing.Pen>
+            </GeometryDrawing>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
 </ResourceDictionary>

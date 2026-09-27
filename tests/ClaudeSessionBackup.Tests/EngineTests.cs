@@ -709,8 +709,8 @@ public class EngineTests : IDisposable
     [Fact]
     public void Engine_ThirteenStores_DefaultFactoryReturnsThirteen()
     {
-        // The default factory produces exactly 13 stores (9 original + 4 MSIX optional stores). This is a pure
-        // structural assertion that never reads live Claude paths.
+        // The default factory produces exactly 13 stores (7 core + 6 optional: 2 cowork3p-* + 4 msix-*). This is
+        // a pure structural assertion that never reads live Claude paths.
         var dest = Path.Combine(_tmp, "dest");
         var opts = Options(dest);
         Assert.Equal(13, KnownStores.Default(opts).Count);
@@ -1065,13 +1065,24 @@ public class EngineTests : IDisposable
             "A non-optional missing store must produce a warning.");
     }
 
-    [Fact]
-    public void KnownStores_FourMsixStoresAreOptional()
+    /// <summary>
+    /// The stores whose source may legitimately be absent: the four msix-* stores (the Store
+    /// package's container, present only where the app runs virtualised) and, since 1.0.4,
+    /// the two cowork3p-* stores (a dormant second profile whose session folders went away
+    /// on 2026-09-20 while its root stayed).
+    /// </summary>
+    private static readonly HashSet<string> OptionalStoreNames = new()
     {
-        // Structural: the four msix-* stores must all have Optional = true.
+        KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig,
+        KnownStores.Cowork3pIndex, KnownStores.Cowork3pAgentMode,
+    };
+
+    [Fact]
+    public void KnownStores_SixOptionalStoresAreOptional()
+    {
+        // Structural: the four msix-* and the two cowork3p-* stores must all have Optional = true.
         var stores = KnownStores.Default(new BackupOptions());
-        var msixNames = new[] { KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig };
-        foreach (var name in msixNames)
+        foreach (var name in OptionalStoreNames)
         {
             var store = stores.Single(s => s.Name == name);
             Assert.True(store.Optional, $"{name} must be Optional = true");
@@ -1079,12 +1090,14 @@ public class EngineTests : IDisposable
     }
 
     [Fact]
-    public void KnownStores_NineOriginalStoresAreNotOptional()
+    public void KnownStores_SevenCoreStoresAreNotOptional()
     {
-        // Structural: the nine non-msix stores must all have Optional = false (the default).
+        // Structural: every other store - the seven that hold this machine's own data - must have
+        // Optional = false (the default), so a vanished source is still a WARN, not a shrug.
         var stores = KnownStores.Default(new BackupOptions());
-        var msixNames = new HashSet<string> { KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig };
-        foreach (var store in stores.Where(s => !msixNames.Contains(s.Name)))
+        var required = stores.Where(s => !OptionalStoreNames.Contains(s.Name)).ToList();
+        Assert.Equal(7, required.Count);
+        foreach (var store in required)
         {
             Assert.False(store.Optional, $"{store.Name} must NOT be Optional");
         }

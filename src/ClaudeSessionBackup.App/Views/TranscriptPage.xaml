@@ -268,8 +268,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <!-- Transparent root: the graph-paper ground is painted by the content host in
+         MainWindow.xaml, and an opaque page would hide it (2026-09-27). The turn
+         cards are opaque, so the paper shows only between them. -->
     <Grid DataContext="{Binding TranscriptVM}"
-          Background="{DynamicResource WindowBrush}">
+          Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

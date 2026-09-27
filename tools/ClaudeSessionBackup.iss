@@ -23,10 +23,10 @@
 #endif
 
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
 #endif
 #ifndef PayloadDir
-  #define PayloadDir "..\dist\Claude Session Backup 1.0.3\app"
+  #define PayloadDir "..\dist\Claude Session Backup 1.0.4\app"
 #endif
 #ifndef OutDir
   #define OutDir "..\dist"

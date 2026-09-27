@@ -13,8 +13,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <!-- Transparent root: the graph-paper ground is painted by the content host in
+         MainWindow.xaml, and an opaque page would hide it (2026-09-27). Transparent
+         rather than unset so the wheel still scrolls over the gaps between cards. -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  Background="{DynamicResource WindowBrush}">
+                  Background="Transparent">
         <StackPanel>
             <TextBlock Text="Restore" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
@@ -69,16 +72,17 @@
                 </ctl:EmptyState.Actions>
             </ctl:EmptyState>
 
-            <!-- LOST sessions -->
+            <!-- LOST sessions. Site grammar (2026-09-27): kicker in the tone's ink,
+                 the count as a 26px headline figure, one detail line - the shape
+                 of the showcase page's stat cards. -->
             <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
-                    <TextBlock FontWeight="SemiBold" FontSize="14"
-                               Foreground="{DynamicResource StatusDangerBrush}" Margin="0,0,0,8">
-                        <Run Text="LOST sessions: " />
-                        <Run Text="{Binding LostSessions.Count, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock Text="Sessions that exist in the backup but are no longer live. The cleanup likely deleted them."
-                               Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,8" />
+                    <TextBlock Text="LOST SESSIONS" Style="{StaticResource CardKeyStyle}"
+                               Foreground="{DynamicResource StatusDangerBrush}" />
+                    <TextBlock Text="{Binding LostSessions.Count, Mode=OneWay}"
+                               Style="{StaticResource BandValueStyle}" />
+                    <TextBlock Text="In the backup but no longer live - Claude Code's cleanup most likely removed them. Open one to read it, or copy it back as the guide above describes."
+                               Style="{StaticResource BandDetailStyle}" Margin="0,2,0,8" />
                     <DataGrid ItemsSource="{Binding LostSessions}"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               MaxHeight="200"
@@ -117,13 +121,12 @@
             <!-- DANGLING sessions -->
             <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
-                    <TextBlock FontWeight="SemiBold" FontSize="14"
-                               Foreground="{DynamicResource StatusWarnBrush}" Margin="0,0,0,8">
-                        <Run Text="DANGLING sessions: " />
-                        <Run Text="{Binding DanglingSessions.Count, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock Text="Sidebar records whose transcript exists nowhere (neither live nor backup)."
-                               Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,8" />
+                    <TextBlock Text="DANGLING SESSIONS" Style="{StaticResource CardKeyStyle}"
+                               Foreground="{DynamicResource StatusWarnBrush}" />
+                    <TextBlock Text="{Binding DanglingSessions.Count, Mode=OneWay}"
+                               Style="{StaticResource BandValueStyle}" />
+                    <TextBlock Text="Sidebar records whose transcript exists nowhere - neither live nor in the backup."
+                               Style="{StaticResource BandDetailStyle}" Margin="0,2,0,8" />
                     <DataGrid ItemsSource="{Binding DanglingSessions}"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               MaxHeight="200"

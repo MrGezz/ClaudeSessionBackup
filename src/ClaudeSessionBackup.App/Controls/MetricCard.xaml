@@ -1,7 +1,8 @@
 <UserControl x:Class="ClaudeSessionBackup.App.Controls.MetricCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls">
+             xmlns:ctl="clr-namespace:ClaudeSessionBackup.App.Controls"
+             xmlns:conv="clr-namespace:ClaudeSessionBackup.App.Converters">
     <!--
         One headline number: a tinted glyph tile beside a label, the value, and a
         line of detail underneath. Four of these sit across the top of the
@@ -17,7 +18,13 @@
     -->
     <UserControl.Template>
         <ControlTemplate TargetType="ctl:MetricCard">
-            <Border Background="{DynamicResource CardBrush}"
+            <ControlTemplate.Resources>
+                <!-- Declared here rather than merged from Controls.xaml: this
+                     control merges nothing, so the template carries its own. -->
+                <conv:UpperCaseConverter x:Key="Upper" />
+            </ControlTemplate.Resources>
+            <Border x:Name="Shell"
+                    Background="{DynamicResource CardBrush}"
                     BorderBrush="{DynamicResource PanelLineBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
@@ -49,13 +56,17 @@
                                    VerticalAlignment="Center" />
                     </Border>
 
+                    <!-- Site grammar (2026-09-27): the label is a bold uppercase
+                         kicker (.stat .k), the figure 26px bold in plain ink
+                         (.stat .n). Same numbers as CardKeyStyle / BandValueStyle
+                         in Controls.xaml, restated because nothing is merged here. -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{TemplateBinding Label}"
-                                   FontSize="11"
+                        <TextBlock Text="{TemplateBinding Label, Converter={StaticResource Upper}}"
+                                   FontSize="11" FontWeight="Bold"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{TemplateBinding Value}"
-                                   FontSize="21" FontWeight="SemiBold"
+                                   FontSize="26" FontWeight="Bold"
                                    Foreground="{DynamicResource TextMainBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,1,0,0" />
@@ -69,6 +80,10 @@
             </Border>
 
             <ControlTemplate.Triggers>
+                <!-- .glass-card:hover, as CardStyle does for every other card. -->
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource AppAccentEdgeBrush}" />
+                </Trigger>
                 <Trigger Property="Tone" Value="Info">
                     <Setter TargetName="Tile"  Property="Background" Value="{DynamicResource StatusVioletFill}" />
                     <Setter TargetName="Tile"  Property="BorderBrush" Value="{DynamicResource StatusVioletLine}" />

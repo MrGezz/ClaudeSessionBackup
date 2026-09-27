@@ -14,7 +14,9 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Background="{DynamicResource WindowBrush}">
+    <!-- Transparent root: the graph-paper ground is painted by the content host in
+         MainWindow.xaml, and an opaque page would hide it (2026-09-27). -->
+    <Grid Background="Transparent">
         <!-- The store table and the log share the window height (2:1) and each
              scrolls inside its card. With an Auto row the thirteen wrapped rows
              grew past the window and pushed the last-run card, the buttons and
@@ -224,13 +226,49 @@
 
         <!-- Last run summary + task status -->
         <Border Grid.Row="3" Style="{StaticResource CardStyle}">
-            <StackPanel>
-                <TextBlock Text="{Binding LastRunSummary}"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           TextWrapping="Wrap" />
-                <TextBlock Text="{Binding ScheduledTaskStatus}" Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="LAST RUN" Style="{StaticResource CardKeyStyle}" />
+                    <TextBlock Text="{Binding LastRunSummary}"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ScheduledTaskStatus}" Margin="0,4,0,0"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+
+                <!-- No daily task at all. Info tone and one line, not a warning
+                     card: registering is the user's opt-in. It exists because a
+                     task can go quietly - this machine's was registered 2026-09-06,
+                     ran twice on schedule and was gone by 2026-09-27 - and the grey
+                     line on the left was the only sign of it. Sits beside the
+                     summary rather than under it so the page height does not grow;
+                     the store table and the log already share what is left. -->
+                <Border Grid.Column="1"
+                        Background="{DynamicResource StatusVioletFill}"
+                        BorderBrush="{DynamicResource StatusVioletLine}"
+                        BorderThickness="1" CornerRadius="8"
+                        Padding="12,6" Margin="16,0,0,0"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding HasNoScheduledTask, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="NO DAILY TASK" Style="{StaticResource CardKeyStyle}"
+                                       Foreground="{DynamicResource StatusVioletBrush}" Margin="0,0,0,1" />
+                            <TextBlock Text="Backups run only when you click."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                        <ui:Button Content="Open Schedule"
+                                   Command="{Binding GoToScheduleCommand}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
 
         <!-- Warnings, each shown only when it has something to say -->
@@ -286,22 +324,30 @@
         <Border Grid.Row="6" Style="{StaticResource CardStyle}"
                 Background="{DynamicResource LogBackgroundBrush}"
                 Padding="8">
-            <ListBox ItemsSource="{Binding LogLines}"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     x:Name="LogListBox">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}"
-                                   FontFamily="Cascadia Mono, Consolas, Courier New"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource LogForegroundBrush}"
-                                   TextWrapping="NoWrap" />
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="RUN LOG" Style="{StaticResource CardKeyStyle}" Margin="4,0,0,4" />
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding LogLines}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         x:Name="LogListBox">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontFamily="Cascadia Mono, Consolas, Courier New"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource LogForegroundBrush}"
+                                       TextWrapping="NoWrap" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

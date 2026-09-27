@@ -15,8 +15,9 @@
                         asserts exit 0/1, last_run.json present with 13 stores and
                         code-transcripts > 0 files.
       4. THEME KEYS   - Semantic.Dark.xaml and Semantic.Light.xaml have identical
-                        x:Key sets; every AppAccent*/Status*/Panel*/Log* key
-                        referenced by any .xaml under App/ exists in both files.
+                        x:Key sets; every AppAccent*/AccentGradient*/AccentBrand*/
+                        Status*/Panel*/Log*/GridLine*/GraphPaper* key referenced by
+                        any .xaml under App/ exists in both files.
       5. LAUNCH       - starts the WPF app exe and asserts a real HwndWrapper window
                         appears (not a dialog, not invisible). Adapted from Sync-ACC's
                         Verify.ps1 with the same EnumWindows / class-check pattern.
@@ -288,15 +289,18 @@ if (-not (Test-Path $darkFile) -or -not (Test-Path $lightFile)) {
         $failed += 'theme'
     }
 
-    # Check that every AppAccent*/Status*/Panel*/Log* key referenced in any App .xaml
-    # exists in both Semantic files.
+    # Check that every AppAccent*/AccentGradient*/AccentBrand*/Status*/Panel*/Log*/
+    # GridLine*/GraphPaper* key referenced in any App .xaml exists in both Semantic
+    # files. The four site-look prefixes joined on 2026-09-27; without them a
+    # gradient or the graph-paper ground missing from one theme would resolve to
+    # nothing in that theme with no error - the same failure this gate exists for.
     $appXamlDir = Join-Path $repo 'src\ClaudeSessionBackup.App'
     $allAppXaml = Get-ChildItem -LiteralPath $appXamlDir -Filter '*.xaml' -Recurse
     $referencedKeys = @()
     foreach ($f in $allAppXaml) {
         $text = [System.IO.File]::ReadAllText($f.FullName)
         $m = [System.Text.RegularExpressions.Regex]::Matches($text,
-            '(?:DynamicResource|StaticResource)\s+(?:x:Key=")?(?<key>(?:AppAccent|Status|Panel|Log)\w+)')
+            '(?:DynamicResource|StaticResource)\s+(?:x:Key=")?(?<key>(?:AppAccent|AccentGradient|AccentBrand|Status|Panel|Log|GridLine|GraphPaper)\w+)')
         $referencedKeys += $m | ForEach-Object { $_.Groups['key'].Value }
     }
     $referencedKeys = @($referencedKeys | Sort-Object -Unique)

@@ -143,7 +143,7 @@ public sealed partial class BackupOptions
     public string ManifestFile => Path.Combine(Destination, "last_run.json");
 }
 
-/// <summary>The nine stores. The single source of truth for what "a session store" means.</summary>
+/// <summary>The thirteen stores (seven required, six Optional). The single source of truth for what "a session store" means.</summary>
 public static class KnownStores
 {
     public const string CodeTranscripts = "code-transcripts";
@@ -221,17 +221,22 @@ public static class KnownStores
             ShrinkGuard: false, Snapshot: false,
             Description: "Claude Desktop live logs (main.log recorded the 2026-08-22 wipe; mcp-*.log, cowork_vm_node.log)"),
 
+        // Optional since 1.0.4 (2026-09-27). The profile is dormant (last activity 2026-08-14) and its
+        // two session folders disappeared between 2026-09-15 and 2026-09-20 while the profile root
+        // stayed; every run since had warned "source missing" twice for stores whose backup copy was
+        // intact and whose profile may never be launched again. Optional keeps that copy, copies again
+        // the moment the folders come back, and reports their absence at INFO with a muted pill.
         new StoreDefinition(
             Cowork3pIndex, StoreMode.Tree, ClaudePaths.Claude3pSidebarIndex,
             ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
             ShrinkGuard: false, Snapshot: true,
-            Description: "sidebar records of the second Claude Desktop profile (Claude-3p)"),
+            Description: "sidebar records of the second Claude Desktop profile (Claude-3p)") { Optional = true },
 
         new StoreDefinition(
             Cowork3pAgentMode, StoreMode.Tree, ClaudePaths.Claude3pAgentModeSessions,
             ExcludeDirs: new[] { "rpm" }, ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
             ShrinkGuard: false, Snapshot: true,
-            Description: "VM / agent-mode sessions of the Claude-3p profile (rpm plugin cache excluded)"),
+            Description: "VM / agent-mode sessions of the Claude-3p profile (rpm plugin cache excluded)") { Optional = true },
 
         // The packaged (Store) app's virtualised profile root. Seen populated on 2026-09-05 evening
         // (local-agent-mode-sessions inside) and gone again by 2026-09-06 01:00 - the same come-and-go

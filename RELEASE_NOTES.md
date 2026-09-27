@@ -1,3 +1,36 @@
+# Claude Session Backup 1.0.4
+
+Released 2026-09-27. Upgrade in place with `ClaudeSessionBackup-1.0.4-Setup.exe`; close the app first,
+the installer waits on its mutex.
+
+## Changed
+
+- **The look.** The app now carries the visual grammar of the IcZ showcase site, referenced from the IcZ
+  Patcher's theme layer rather than copied: a cyan-to-violet rule under the title bar and on the selected
+  nav item, a faint graph-paper ground behind every page, card borders that take the accent under the
+  pointer, bold uppercase kickers on card labels, 26 px headline figures on the Dashboard metrics and the
+  Restore counts, and a small brand tile in the status strip. Same solid CM2 palette, no backdrop, both
+  themes.
+- **The two `cowork3p-*` stores are Optional.** That dormant second profile lost its two session folders
+  between 2026-09-15 and 2026-09-20 while its root stayed, and every run since had warned "source
+  missing" twice for stores whose backup copy was intact. An absent optional store is INFO with a muted
+  "absent" pill; if the folders come back they are copied as before. The two warnings that profile raised
+  on every run are gone.
+
+## Added
+
+- **A nudge on the Dashboard when no daily task is registered**, beside the last-run summary, with a
+  button to the Schedule page. Registering is still your choice; the nudge exists because a task can go
+  quietly (this machine's did, between 2026-09-08 and 2026-09-27) and until now the only sign was a grey
+  "No scheduled task" line.
+- **The Catalog grid sits in a card** like the Dashboard's table, so the page ground never shows through
+  its rows.
+
+## Verify
+
+- The theme-key gate now also checks the site-look keys (`AccentGradient*`, `AccentBrand*`, `GridLine*`,
+  `GraphPaper*`) for parity between the two themes, not only `AppAccent*`, `Status*`, `Panel*` and `Log*`.
+
 # Claude Session Backup 1.0.3
 
 Released 2026-09-07. Upgrade in place with `ClaudeSessionBackup-1.0.3-Setup.exe`; close the app first,

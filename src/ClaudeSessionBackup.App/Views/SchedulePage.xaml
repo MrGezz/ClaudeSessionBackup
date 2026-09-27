@@ -12,7 +12,9 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel Background="{DynamicResource WindowBrush}">
+    <!-- Transparent root: the graph-paper ground is painted by the content host in
+         MainWindow.xaml, and an opaque page would hide it (2026-09-27). -->
+    <StackPanel Background="Transparent">
         <TextBlock Text="Schedule" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12" />
 
         <Border Style="{StaticResource CardStyle}">

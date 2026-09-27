@@ -42,11 +42,13 @@
                                     Padding="{TemplateBinding Padding}"
                                     SnapsToDevicePixels="True">
                                 <Grid>
+                                    <!-- The checked row's bar runs the site's cyan -> violet
+                                         vertically (was the flat accent until 2026-09-27). -->
                                     <Border x:Name="AccentBar"
                                             Width="3" HorizontalAlignment="Left"
                                             Margin="-10,6,-0,6"
                                             CornerRadius="1.5"
-                                            Background="{DynamicResource AppAccentBrush}"
+                                            Background="{DynamicResource AccentGradientVerticalBrush}"
                                             Visibility="Collapsed" />
                                     <ContentPresenter
                                         HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -140,6 +142,12 @@
                 <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+
+            <!-- Site look (2026-09-27): a 2px rule along the seam between the title
+                 bar and the body, in the showcase page's #progress run. ZIndex 1 so
+                 neither the rail's ground nor the content host paints over it. -->
+            <Border Grid.ColumnSpan="2" Height="2" VerticalAlignment="Top" Panel.ZIndex="1"
+                    Background="{DynamicResource AccentGradientBrush}" />
 
             <!-- ==================== left nav rail ========================== -->
             <Border Grid.Column="0"
@@ -300,8 +308,13 @@
             </Border>
 
             <!-- ==================== content host =========================== -->
-            <Grid Grid.Column="1" Margin="24,16,24,16"
-                  Background="{DynamicResource WindowBrush}">
+            <!-- Ground first: the showcase page's #heroCanvas grid, a faint 26px
+                 graph paper tiled over the window brush, as a sibling UNDER the
+                 host so the host keeps its margin. Every page root is transparent
+                 for this - a page that painted WindowBrush again (they all did
+                 until 2026-09-27) would hide it. -->
+            <Border Grid.Column="1" Background="{DynamicResource GraphPaperBrush}" />
+            <Grid Grid.Column="1" Margin="24,16,24,16">
                 <local:DashboardPage>
                     <local:DashboardPage.Style>
                         <Style TargetType="local:DashboardPage">
@@ -400,12 +413,21 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
                             ToolTip="IcZ Workspace Core">
-                    <TextBlock Text="&#xE8FD;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="11"
-                               Foreground="{DynamicResource AppAccentBrush}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0" />
+                    <!-- .brand-mark: the accent-only diagonal gradient on a 16px
+                         tile with near-black ink on it (4.5:1 holds on cyan; it
+                         would not on violet, which is why that run stops at
+                         #00838F). Icon font on the TextBlock only, as ever. -->
+                    <Border Width="16" Height="16" CornerRadius="4"
+                            Background="{DynamicResource AccentBrandGradientBrush}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,6,0">
+                        <TextBlock Text="&#xE8FD;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="9"
+                                   Foreground="{DynamicResource AppAccentInkBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
                     <TextBlock Text="IcZ"
                                FontWeight="ExtraBold"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"

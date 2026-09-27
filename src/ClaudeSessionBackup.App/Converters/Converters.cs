@@ -223,3 +223,23 @@ public sealed class EpochMsToDateConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) =>
         throw new NotSupportedException();
 }
+
+/// <summary>
+/// The site grammar's kicker (2026-09-27): CSS <c>text-transform:uppercase</c> has
+/// no WPF property, so bound card labels pass through this at their binding.
+/// </summary>
+/// <remarks>
+/// Invariant culture, because a label is an identifier-like string and the Turkish
+/// dotted-i rule must not reshape it. One-way: a label is never edited in place,
+/// so ConvertBack returns <see cref="Binding.DoNothing"/> rather than throwing -
+/// a TemplateBinding is one-way by nature but a two-way misuse should be inert,
+/// not a crash.
+/// </remarks>
+public sealed class UpperCaseConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s ? s.ToUpperInvariant() : (value ?? string.Empty);
+
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) =>
+        Binding.DoNothing;
+}

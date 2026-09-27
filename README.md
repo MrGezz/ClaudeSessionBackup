@@ -93,8 +93,8 @@ so a crash you clicked away is still diagnosable.
 | `cowork-scratch` | `%APPDATA%\Claude\scratch-workspaces` | working files of "No folder" sessions |
 | `cowork-config` | `%APPDATA%\Claude` | whitelist of config files + `logs\` |
 | `cowork-logs` | `%LOCALAPPDATA%\Claude\Logs` | the desktop app's live logs (`main.log` recorded the Aug-22 wipe, `mcp-*.log`, `cowork_vm_node.log`); the `%APPDATA%` copy stopped on 2026-08-22 |
-| `cowork3p-index` | `%LOCALAPPDATA%\Claude-3p\claude-code-sessions` | sidebar records of the second Claude Desktop profile (dormant since 2026-08-14) |
-| `cowork3p-agent-mode` | `%LOCALAPPDATA%\Claude-3p\local-agent-mode-sessions` | that profile's VM / agent-mode store; `rpm\` excluded. Its root holds `host-creds-*.json` and is deliberately NOT a store |
+| `cowork3p-index` | `%LOCALAPPDATA%\Claude-3p\claude-code-sessions` | sidebar records of the second Claude Desktop profile (dormant since 2026-08-14); **Optional** since 1.0.4 - its session folders went away on 2026-09-20 while the profile root stayed, and an absent optional store is INFO, copied again if it returns |
+| `cowork3p-agent-mode` | `%LOCALAPPDATA%\Claude-3p\local-agent-mode-sessions` | that profile's VM / agent-mode store; `rpm\` excluded; **Optional** since 1.0.4. Its root holds `host-creds-*.json` and is deliberately NOT a store |
 | `msix-index` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code-sessions` | sidebar records of the packaged (Store) Claude Desktop; **Optional** - absent when the Store app is not installed |
 | `msix-agent-mode` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\local-agent-mode-sessions` | VM / agent-mode sessions in the MSIX container; `rpm\` excluded; **Optional** |
 | `msix-scratch` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\scratch-workspaces` | scratch workspaces in the MSIX container; **Optional** |
@@ -155,7 +155,7 @@ per-size renders under `build\icon\` are intermediates and are git-ignored.
 
 ### Quick start (installer)
 
-Download `ClaudeSessionBackup-1.0.3-Setup.exe` from the repository's **Releases page** and run it.
+Download `ClaudeSessionBackup-1.0.4-Setup.exe` from the repository's **Releases page** and run it.
 
 The wizard installs per-user to `%LOCALAPPDATA%\Programs\ClaudeSessionBackup` — no administrator rights
 needed or requested. It creates a Start Menu entry; the desktop shortcut and the daily backup task are
@@ -177,7 +177,7 @@ The installer is self-contained — no .NET installation required.
 
 ### Quick start (zip)
 
-1. Download `ClaudeSessionBackup-1.0.3-win-x64.zip` from the Releases page.
+1. Download `ClaudeSessionBackup-1.0.4-win-x64.zip` from the Releases page.
 2. Right-click the zip > **Properties** > tick **Unblock** > OK. (Windows marks
    downloaded archives as blocked; unblocking before extracting clears the mark on
    all files inside. Unblocking after extraction does not.)
@@ -231,7 +231,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\Package.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\Make-Installer.ps1 -SkipPackage
 ```
 
-`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.3-win-x64.zip` (self-contained, ~65 MB).
+`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.4-win-x64.zip` (self-contained, ~65 MB).
 Running it first and then pointing `Make-Installer.ps1 -SkipPackage` at that exact payload is
 what guarantees the zip and the Setup.exe are the same build. `Make-Installer.ps1` also writes
 `dist\SHA256SUMS.txt` for both files (LF line endings, the format `sha256sum -c` reads).

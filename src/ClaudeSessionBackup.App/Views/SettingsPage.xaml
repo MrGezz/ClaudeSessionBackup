@@ -16,9 +16,11 @@
          topic, a title, a bold label, a one-line hint, and a pill ToggleSwitch on the
          right for every yes/no choice. Scrollable, so a short window still reaches the
          last card. -->
+    <!-- Transparent root: the graph-paper ground is painted by the content host in
+         MainWindow.xaml, and an opaque page would hide it (2026-09-27). -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  Background="{DynamicResource WindowBrush}">
+                  Background="Transparent">
         <!-- Fills the content area, like every other page. It used to be
              MaxWidth="760" HorizontalAlignment="Left", which kept the form to a
              readable measure but left a 250 px gutter down the right and made

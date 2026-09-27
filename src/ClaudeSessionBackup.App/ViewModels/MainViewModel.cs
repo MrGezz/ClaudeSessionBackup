@@ -145,6 +145,28 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>True when <see cref="TaskWarningText"/> is non-empty.</summary>
     public bool HasTaskWarning => !string.IsNullOrEmpty(_taskWarningText);
 
+    private bool _hasNoScheduledTask;
+
+    /// <summary>
+    /// True when no daily task is registered at all. Drives the Info-toned nudge
+    /// beside the last-run summary, with a button to the Schedule page.
+    /// </summary>
+    /// <remarks>
+    /// Registering the task is the user's opt-in, so this is a nudge, not a warning.
+    /// It exists because a task can go quietly: this machine's was registered on
+    /// 2026-09-06, ran on schedule twice, and was gone by 2026-09-27 - and the only
+    /// sign of it was the tertiary "No scheduled task" line under the summary. False
+    /// when the query itself fails: an unknown state must not nag.
+    /// </remarks>
+    public bool HasNoScheduledTask
+    {
+        get => _hasNoScheduledTask;
+        set => Set(ref _hasNoScheduledTask, value);
+    }
+
+    /// <summary>Switches to the Schedule page - the nudge's button.</summary>
+    public ICommand GoToScheduleCommand { get; }
+
     // ------------------------------------------------------ dashboard metrics
     //
     // Four numbers across the top of the Dashboard, above the store grid. The
@@ -509,6 +531,7 @@ public sealed class MainViewModel : ViewModelBase
         InstallTaskCommand = new RelayCommand(InstallTask, () => !IsDemo);
         UninstallTaskCommand = new RelayCommand(UninstallTask, () => !IsDemo);
         RefreshTaskStatusCommand = new RelayCommand(RefreshTaskStatus);
+        GoToScheduleCommand = new RelayCommand(() => CurrentPage = AppPage.Schedule);
 
         BrowseDestinationCommand = new RelayCommand(BrowseDestination);
         SaveSettingsCommand = new RelayCommand(SaveSettings, () => !IsDemo);
@@ -568,6 +591,7 @@ public sealed class MainViewModel : ViewModelBase
         // Schedule
         TaskStatus = "Not installed";
         ScheduledTaskStatus = "No scheduled task";
+        HasNoScheduledTask = true;
     }
 
     // -------------------------------------------------------------- dashboard
@@ -1007,12 +1031,14 @@ public sealed class MainViewModel : ViewModelBase
                     : info.LastRunFailed
                         ? $"The daily backup task's last run failed: {info.LastResult}. Open Schedule for details."
                         : "";
+                HasNoScheduledTask = false;
             }
             else
             {
                 TaskStatus = "Not installed";
                 ScheduledTaskStatus = "No scheduled task";
                 TaskWarningText = "";
+                HasNoScheduledTask = true;
             }
         }
         catch (NotImplementedException)
@@ -1020,12 +1046,14 @@ public sealed class MainViewModel : ViewModelBase
             TaskStatus = "Scheduler not yet implemented";
             ScheduledTaskStatus = "";
             TaskWarningText = "";
+            HasNoScheduledTask = false;
         }
         catch (Exception ex)
         {
             TaskStatus = $"Error: {ex.Message}";
             ScheduledTaskStatus = "";
             TaskWarningText = "";
+            HasNoScheduledTask = false;
         }
     }
 
