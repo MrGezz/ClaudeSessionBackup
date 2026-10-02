@@ -707,13 +707,13 @@ public class EngineTests : IDisposable
     }
 
     [Fact]
-    public void Engine_ThirteenStores_DefaultFactoryReturnsThirteen()
+    public void Engine_EighteenStores_DefaultFactoryReturnsEighteen()
     {
-        // The default factory produces exactly 13 stores (7 core + 6 optional: 2 cowork3p-* + 4 msix-*). This is
-        // a pure structural assertion that never reads live Claude paths.
+        // The default factory produces exactly 18 stores (7 core + 11 optional: 2 cowork3p-* +
+        // 4 msix-* + 5 zcode-*). A pure structural assertion that never reads live paths.
         var dest = Path.Combine(_tmp, "dest");
         var opts = Options(dest);
-        Assert.Equal(13, KnownStores.Default(opts).Count);
+        Assert.Equal(18, KnownStores.Default(opts).Count);
     }
 
     [Fact]
@@ -1067,20 +1067,24 @@ public class EngineTests : IDisposable
 
     /// <summary>
     /// The stores whose source may legitimately be absent: the four msix-* stores (the Store
-    /// package's container, present only where the app runs virtualised) and, since 1.0.4,
-    /// the two cowork3p-* stores (a dormant second profile whose session folders went away
-    /// on 2026-09-20 while its root stayed).
+    /// package's container, present only where the app runs virtualised), the two cowork3p-*
+    /// stores (a dormant second profile whose session folders went away on 2026-09-20 while
+    /// its root stayed), and - since 2026-10-02 - the five zcode-* stores (ZCode was installed
+    /// 2026-10-01; an uninstall or a moved data root must be INFO, not five nightly WARNs).
     /// </summary>
     private static readonly HashSet<string> OptionalStoreNames = new()
     {
         KnownStores.MsixIndex, KnownStores.MsixAgentMode, KnownStores.MsixScratch, KnownStores.MsixConfig,
         KnownStores.Cowork3pIndex, KnownStores.Cowork3pAgentMode,
+        KnownStores.ZcodeTranscripts, KnownStores.ZcodeDb, KnownStores.ZcodeArtifacts,
+        KnownStores.ZcodeMemories, KnownStores.ZcodeConfig,
     };
 
     [Fact]
-    public void KnownStores_SixOptionalStoresAreOptional()
+    public void KnownStores_ElevenOptionalStoresAreOptional()
     {
-        // Structural: the four msix-* and the two cowork3p-* stores must all have Optional = true.
+        // Structural: the four msix-*, the two cowork3p-* and the five zcode-* stores must all
+        // have Optional = true.
         var stores = KnownStores.Default(new BackupOptions());
         foreach (var name in OptionalStoreNames)
         {
@@ -1092,8 +1096,9 @@ public class EngineTests : IDisposable
     [Fact]
     public void KnownStores_SevenCoreStoresAreNotOptional()
     {
-        // Structural: every other store - the seven that hold this machine's own data - must have
-        // Optional = false (the default), so a vanished source is still a WARN, not a shrug.
+        // Structural: every other store - the seven Claude stores that hold this machine's own
+        // data - must have Optional = false (the default), so a vanished source is still a
+        // WARN, not a shrug.
         var stores = KnownStores.Default(new BackupOptions());
         var required = stores.Where(s => !OptionalStoreNames.Contains(s.Name)).ToList();
         Assert.Equal(7, required.Count);
@@ -1101,6 +1106,73 @@ public class EngineTests : IDisposable
         {
             Assert.False(store.Optional, $"{store.Name} must NOT be Optional");
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // ZCode stores (added 2026-10-02)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void KnownStores_ZcodeStores_RootAtZcodeCli()
+    {
+        // Structural: every zcode-* store must live under %USERPROFILE%\.zcode\cli, never at
+        // the ~\.zcode root or under v2 (which holds credentials.json).
+        var stores = KnownStores.Default(new BackupOptions());
+        var zcodeRoot = ClaudePaths.ZcodeCli + Path.DirectorySeparatorChar;
+        var zcodeStores = stores.Where(s => s.Name.StartsWith("zcode-", StringComparison.Ordinal)).ToList();
+
+        Assert.Equal(5, zcodeStores.Count);
+        foreach (var store in zcodeStores)
+        {
+            // The store's source is the cli root itself (zcode-config) or a folder inside it -
+            // never the ~\.zcode root and never anything under v2.
+            var underCli = string.Equals(store.Source, ClaudePaths.ZcodeCli, StringComparison.OrdinalIgnoreCase)
+                || store.Source.StartsWith(zcodeRoot, StringComparison.OrdinalIgnoreCase);
+            Assert.True(underCli, $"{store.Name} must live at or under {ClaudePaths.ZcodeCli}");
+        }
+    }
+
+    [Fact]
+    public void KnownStores_ZcodeTranscripts_ShrinkGuardedNeverSnapshotted()
+    {
+        // The rollout dumps are append-only *.jsonl exactly like Claude transcripts: shrink
+        // guard yes, snapshot no (the same ~0.5 GB-per-day rule as code-transcripts).
+        var store = KnownStores.Default(new BackupOptions()).Single(s => s.Name == KnownStores.ZcodeTranscripts);
+        Assert.Equal(StoreMode.Tree, store.Mode);
+        Assert.True(store.ShrinkGuard, "rollout jsonl is append-only; a shrink means the source was damaged");
+        Assert.False(store.Snapshot, "the rollout tree is large; it must follow code-transcripts into live\\ only");
+    }
+
+    [Fact]
+    public void KnownStores_ZcodeDb_ExcludesShmAndIsSnapshotted()
+    {
+        // db.sqlite-shm is shared-memory state of the RUNNING process: meaningless in a backup
+        // and actively confusing on restore. The db itself is irreplaceable metadata - it gets
+        // point-in-time snapshot copies like cowork-index.
+        var store = KnownStores.Default(new BackupOptions()).Single(s => s.Name == KnownStores.ZcodeDb);
+        Assert.Equal(StoreMode.Tree, store.Mode);
+        Assert.Contains("db.sqlite-shm", store.ExcludeFiles);
+        Assert.True(store.Snapshot);
+    }
+
+    [Fact]
+    public void KnownStores_ZcodeConfig_IsWhitelistConfigJsonOnly()
+    {
+        // The cli root also holds exec\ (ephemeral), log\ (telemetry) and plugins\ (a cache):
+        // only config.json may be copied from it, so the store must stay Whitelist with no dirs.
+        var store = KnownStores.Default(new BackupOptions()).Single(s => s.Name == KnownStores.ZcodeConfig);
+        Assert.Equal(StoreMode.Whitelist, store.Mode);
+        Assert.Equal(new[] { "config.json" }, store.Files);
+        Assert.Empty(store.Dirs);
+    }
+
+    [Fact]
+    public void KnownStores_SecretFiles_CoverZcodeCredentials()
+    {
+        // "~\.zcode\v2 holds credentials.json" is a never-a-store rule like the Claude-3p root;
+        // the name must also sit in the global deny set so no future store can copy it anywhere.
+        Assert.Contains("credentials.json", KnownStores.SecretFiles);
+        Assert.Contains(".credentials.json", KnownStores.SecretFiles);
     }
 
     // -------------------------------------------------------------------------

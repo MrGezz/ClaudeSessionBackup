@@ -1,3 +1,28 @@
+# Claude Session Backup 1.0.5
+
+Released 2026-10-02. Upgrade in place with `ClaudeSessionBackup-1.0.5-Setup.exe`; close the app first,
+the installer waits on its mutex.
+
+## Added
+
+- **ZCode is backed up too.** Five new stores cover the ZCode agent's data under `~\.zcode\cli`:
+  `zcode-transcripts` (the `model-io-sess_<uuid>.jsonl` conversation dumps, append-only, shrink-guarded
+  like Claude transcripts and excluded from snapshots for size), `zcode-db` (the session index sqlite,
+  snapshotted; the `-shm` shared-memory file is excluded), `zcode-artifacts` (per-session tool results
+  and media), `zcode-memories` (persistent per-project memory) and `zcode-config` (`config.json` only -
+  registered MCP servers, hooks, plugins). All five are **Optional**: if ZCode is uninstalled or moves
+  its data root, their absence is an INFO line, not five warnings. The Dashboard now shows 18 stores.
+- **`credentials.json` joined the global secret list.** `~\.zcode\v2` holds ZCode's sign-in secret;
+  no store roots there (the same ruling as the Claude-3p profile root), and the file name is excluded
+  by every copier as defence in depth.
+
+## Deliberately not a store
+
+- `~\.zcode\cli\exec` (ephemeral shell snapshots, regenerated per session), `cli\log` (app telemetry),
+  `cli\plugins` (a package cache, like `rpm\` and `node_modules`) and all of `~\.zcode\v2` (secrets).
+  The ZCode transcript viewer is not wired up either - the rollout format is ZCode's own and is stored
+  verbatim; the Transcript page still reads Claude's `*.jsonl` format.
+
 # Claude Session Backup 1.0.4
 
 Released 2026-09-27. Upgrade in place with `ClaudeSessionBackup-1.0.4-Setup.exe`; close the app first,

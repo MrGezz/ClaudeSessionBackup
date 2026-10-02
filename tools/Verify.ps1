@@ -12,7 +12,7 @@
                         is a test bug vs an implementation bug.
       3. SMOKE        - runs the Release CLI against a throwaway destination:
                           verify, backup --no-snapshot, catalog --report, rebuild (dry)
-                        asserts exit 0/1, last_run.json present with 13 stores and
+                        asserts exit 0/1, last_run.json present with 18 stores and
                         code-transcripts > 0 files.
       4. THEME KEYS   - Semantic.Dark.xaml and Semantic.Light.xaml have identical
                         x:Key sets; every AppAccent*/AccentGradient*/AccentBrand*/
@@ -203,11 +203,11 @@ if ($SkipSmoke) {
         } else {
             $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             $storeCount = $manifest.stores.Count
-            if ($storeCount -ne 13) {
+            if ($storeCount -ne 18) {
                 $failed += 'smoke'
-                Fail "last_run.json has $storeCount stores, expected 13"
+                Fail "last_run.json has $storeCount stores, expected 18"
             } else {
-                Pass "last_run.json has 13 stores"
+                Pass "last_run.json has 18 stores"
             }
 
             # code-transcripts must have at least 1 file (live stores must exist)

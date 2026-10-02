@@ -22,8 +22,10 @@ internal static class DemoDataSource
 
     /// <summary>
     /// Builds a <see cref="RunManifest"/> that populates the Dashboard table
-    /// with 13 plausible rows, six of which are optional and absent: the two
-    /// cowork3p-* stores and the four msix-* stores.
+    /// with 18 plausible rows: the seven Claude core stores Ok, six optional
+    /// and absent (the two cowork3p-* stores and the four msix-* stores), and
+    /// the five zcode-* stores Ok (Optional in real life, present here the way
+    /// they are on the machine the demo imitates).
     /// </summary>
     public static RunManifest BuildManifest()
     {
@@ -42,13 +44,18 @@ internal static class DemoDataSource
             S("msix-agent-mode",  StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
             S("msix-scratch",     StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
             S("msix-config",      StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("zcode-transcripts",StoreStatus.Ok,       27,   536_800_000L,   27,   536_800_000L,  2,   25, 0, 0),
+            S("zcode-db",         StoreStatus.Ok,        3,    13_900_000L,    2,    13_900_000L,  2,    0, 0, 0),
+            S("zcode-artifacts",  StoreStatus.Ok,       61,     5_400_000L,   61,     5_400_000L,  4,   57, 0, 0),
+            S("zcode-memories",   StoreStatus.Ok,        9,       380_000L,    9,       380_000L,  5,    4, 0, 0),
+            S("zcode-config",     StoreStatus.Ok,        1,         3_000L,    1,         3_000L,  1,    0, 0, 0),
         };
 
         return new RunManifest(
             StampStr, "backup", @"D:\Backups\Claude", IncludeSubagents: false,
             stores, @"D:\Backups\Claude\catalog\sessions_catalog.json",
             @"D:\Backups\Claude\snapshots\20260905_210014_claude-stores.zip",
-            Warnings: Array.Empty<string>(), Seconds: 8.4,
+            Warnings: Array.Empty<string>(), Seconds: 23.7,
             LogPath: @"D:\Backups\Claude\logs\20260905_210014_backup.log");
 
         static StoreResult S(string name, StoreStatus status,
@@ -64,11 +71,12 @@ internal static class DemoDataSource
         $"{DemoStamp:yyyy-MM-dd HH:mm:ss} [INFO] destination: D:\\Backups\\Claude",
         $"{DemoStamp.AddSeconds(2):yyyy-MM-dd HH:mm:ss} [INFO] code-transcripts     1,203 files seen,    12 copied,  1,191 unchanged",
         $"{DemoStamp.AddSeconds(5):yyyy-MM-dd HH:mm:ss} [INFO] cowork-index            38 files seen,     1 copied,    37 unchanged",
-        $"{DemoStamp.AddSeconds(8):yyyy-MM-dd HH:mm:ss} [INFO] done: {DemoStamp.AddSeconds(8):yyyy-MM-dd HH:mm:ss} backup 13 stores, 0 warnings, 8s",
+        $"{DemoStamp.AddSeconds(9):yyyy-MM-dd HH:mm:ss} [INFO] zcode-transcripts        27 files seen,     2 copied,    25 unchanged",
+        $"{DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} [INFO] done: {DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} backup 18 stores, 0 warnings, 23s",
     };
 
     public static string LastRunSummary =>
-        $"Last run: {StampStr} - backup - 20 copied, 0 failed, 0 warnings (8.4s)  on WORKSTATION  to D:\\Backups\\Claude";
+        $"Last run: {StampStr} - backup - 35 copied, 0 failed, 0 warnings (23.7s)  on WORKSTATION  to D:\\Backups\\Claude";
 
     // ------------------------------------------------------------ catalog
 

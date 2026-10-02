@@ -1,8 +1,8 @@
 # ClaudeSessionBackup
 
-Backup tools for Claude. A Windows desktop app plus headless CLI that backs up every conversation store
-Claude Desktop (Cowork) and Claude Code keep on this machine into a folder neither app touches, keeps a
-session catalog, and can rebuild a wiped Cowork sidebar from that catalog.
+Backup tools for Claude and ZCode. A Windows desktop app plus headless CLI that backs up every
+conversation store Claude Desktop (Cowork), Claude Code and ZCode keep on this machine into a folder
+neither app touches, keeps a session catalog, and can rebuild a wiped Cowork sidebar from that catalog.
 
 The C# tool is the authoritative implementation.
 
@@ -34,7 +34,7 @@ The screenshots below are captured from the app running in demo mode (`--demo`, 
 `tools\Capture-Screenshots.ps1 -Demo`. The demo marker at `docs\screenshots\.demo` is verified by
 `tools\Check-Privacy.ps1` (gate 7): it records each screenshot's SHA-256, so a screenshot that did not come out of demo mode fails the gate and no real session data enters a tracked file.
 
-Dashboard after a backup run - the thirteen stores, live and backup counts, status, the run log:
+Dashboard after a backup run - the eighteen stores, live and backup counts, status, the run log:
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -65,7 +65,7 @@ Light theme:
 Six pages behind a nav rail, dark/light CM2 theme, single instance. Run with `--demo` for a fictional
 dataset (no live stores read):
 
-* **Dashboard** - the thirteen stores with live vs backup counts and a status pill, Backup now / Verify / Cancel,
+* **Dashboard** - the eighteen stores with live vs backup counts and a status pill, Backup now / Verify / Cancel,
   last-run summary, scheduled-task status, and the run log.
 * **Catalog** - every session (title, project, prompts/replies, size, live, backup, sidebar record), search,
   LOST / DANGLING / deleted-in-app flags, open a transcript's folder. Open a session to view its transcript.
@@ -99,6 +99,11 @@ so a crash you clicked away is still diagnosable.
 | `msix-agent-mode` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\local-agent-mode-sessions` | VM / agent-mode sessions in the MSIX container; `rpm\` excluded; **Optional** |
 | `msix-scratch` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\scratch-workspaces` | scratch workspaces in the MSIX container; **Optional** |
 | `msix-config` | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude` | config and logs of the packaged Claude Desktop's container profile; **Optional** |
+| `zcode-transcripts` | `~\.zcode\cli\rollout` | ZCode conversations - `model-io-sess_<uuid>.jsonl`, append-only request/response dumps; shrink-guarded like `code-transcripts`, never snapshotted (large); **Optional** |
+| `zcode-db` | `~\.zcode\cli\db` | the ZCode session index (`db.sqlite` + `-wal`; `-shm` excluded - shared-memory state of the running process); **Optional** |
+| `zcode-artifacts` | `~\.zcode\cli\artifacts` | per-session tool results and media the rollout logs reference; never snapshotted; **Optional** |
+| `zcode-memories` | `~\.zcode\cli\memories` | ZCode's persistent per-project memory; **Optional** |
+| `zcode-config` | `~\.zcode\cli` | whitelist: `config.json` only (registered MCP servers, hooks, plugins). The root also holds `exec\`, `log\` and `plugins\` (ephemeral / cache) and is deliberately not copied wholesale; `~\.zcode\v2` holds `credentials.json` and is NEVER a store |
 
 Destination default `%USERPROFILE%\Claude\_claude_sessions_backup\`: `live\`, `snapshots\<stamp>_claude-stores.zip`,
 `catalog\sessions_catalog.json|.md|.previous.json`, `logs\`, `quarantine\`, `_to_delete\`, `backup.log`, `last_run.json`.
@@ -155,7 +160,7 @@ per-size renders under `build\icon\` are intermediates and are git-ignored.
 
 ### Quick start (installer)
 
-Download `ClaudeSessionBackup-1.0.4-Setup.exe` from the repository's **Releases page** and run it.
+Download `ClaudeSessionBackup-1.0.5-Setup.exe` from the repository's **Releases page** and run it.
 
 The wizard installs per-user to `%LOCALAPPDATA%\Programs\ClaudeSessionBackup` — no administrator rights
 needed or requested. It creates a Start Menu entry; the desktop shortcut and the daily backup task are
@@ -177,7 +182,7 @@ The installer is self-contained — no .NET installation required.
 
 ### Quick start (zip)
 
-1. Download `ClaudeSessionBackup-1.0.4-win-x64.zip` from the Releases page.
+1. Download `ClaudeSessionBackup-1.0.5-win-x64.zip` from the Releases page.
 2. Right-click the zip > **Properties** > tick **Unblock** > OK. (Windows marks
    downloaded archives as blocked; unblocking before extracting clears the mark on
    all files inside. Unblocking after extraction does not.)
@@ -231,7 +236,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\Package.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\Make-Installer.ps1 -SkipPackage
 ```
 
-`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.4-win-x64.zip` (self-contained, ~65 MB).
+`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.5-win-x64.zip` (self-contained, ~65 MB).
 Running it first and then pointing `Make-Installer.ps1 -SkipPackage` at that exact payload is
 what guarantees the zip and the Setup.exe are the same build. `Make-Installer.ps1` also writes
 `dist\SHA256SUMS.txt` for both files (LF line endings, the format `sha256sum -c` reads).

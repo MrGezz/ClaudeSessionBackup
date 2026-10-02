@@ -38,7 +38,7 @@ public sealed partial record StoreDefinition(
     public bool Optional { get; init; }
 }
 
-/// <summary>Where Claude Desktop (Cowork) and Claude Code keep things on this machine.</summary>
+/// <summary>Where Claude Desktop (Cowork), Claude Code and ZCode keep things on this machine.</summary>
 public static class ClaudePaths
 {
     public static string UserProfile => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -113,6 +113,37 @@ public static class ClaudePaths
     /// Any OTHER running claude.exe is the desktop app, which must be closed before the sidebar index is written.
     /// </summary>
     public static string CliBinaryRoot => Path.Combine(AppDataClaude, "claude-code");
+
+    // ------------------------------------------------------------------ ZCode
+    // ZCode (the agent this tool is being developed with) keeps its per-user data under
+    // %USERPROFILE%\.zcode the way Claude Code uses ~\.claude. Measured 2026-10-01/02:
+    //   cli\rollout   model-io-sess_<uuid>.jsonl - one append-only dump per session holding
+    //                 every request and response (the raw conversation; large: ~0.5 GB after a day)
+    //   cli\db        db.sqlite + -wal - the session index (conversations, tasks, rollups)
+    //   cli\artifacts sess_<uuid>\call_*-tool-result-* - tool results and media the rollout logs reference
+    //   cli\memories  memories\projects\<project>\memory - the persistent per-project memory
+    //   cli\config.json - registered MCP servers, hooks, plugins (the claude_desktop_config.json analogue)
+    // NOT stores, deliberately: cli\exec (ephemeral shell snapshots, regenerated per session),
+    // cli\log (app telemetry), cli\plugins (a cache, like rpm/node_modules), and the WHOLE ~\.zcode\v2
+    // root - it holds credentials.json (sign-in secrets; the Claude-3p rule).
+
+    /// <summary>%USERPROFILE%\.zcode - the ZCode agent's home, the ~\.claude analogue.</summary>
+    public static string ZcodeHome => Path.Combine(UserProfile, ".zcode");
+
+    /// <summary>%USERPROFILE%\.zcode\cli - ZCode's per-user data root.</summary>
+    public static string ZcodeCli => Path.Combine(ZcodeHome, "cli");
+
+    /// <summary>%USERPROFILE%\.zcode\cli\rollout - model-io-sess_&lt;uuid&gt;.jsonl, the raw ZCode conversations.</summary>
+    public static string ZcodeRollout => Path.Combine(ZcodeCli, "rollout");
+
+    /// <summary>%USERPROFILE%\.zcode\cli\db - db.sqlite + -wal, the ZCode session index.</summary>
+    public static string ZcodeDb => Path.Combine(ZcodeCli, "db");
+
+    /// <summary>%USERPROFILE%\.zcode\cli\artifacts - per-session tool results and media.</summary>
+    public static string ZcodeArtifacts => Path.Combine(ZcodeCli, "artifacts");
+
+    /// <summary>%USERPROFILE%\.zcode\cli\memories - the persistent per-project memory.</summary>
+    public static string ZcodeMemories => Path.Combine(ZcodeCli, "memories");
 }
 
 /// <summary>Options for one backup or verify run. Mirrors the PowerShell tool's switches one to one.</summary>
@@ -143,7 +174,7 @@ public sealed partial class BackupOptions
     public string ManifestFile => Path.Combine(Destination, "last_run.json");
 }
 
-/// <summary>The thirteen stores (seven required, six Optional). The single source of truth for what "a session store" means.</summary>
+/// <summary>The eighteen stores (seven required, eleven Optional). The single source of truth for what "a session store" means.</summary>
 public static class KnownStores
 {
     public const string CodeTranscripts = "code-transcripts";
@@ -159,6 +190,11 @@ public static class KnownStores
     public const string MsixAgentMode = "msix-agent-mode";
     public const string MsixScratch = "msix-scratch";
     public const string MsixConfig = "msix-config";
+    public const string ZcodeTranscripts = "zcode-transcripts";
+    public const string ZcodeDb = "zcode-db";
+    public const string ZcodeArtifacts = "zcode-artifacts";
+    public const string ZcodeMemories = "zcode-memories";
+    public const string ZcodeConfig = "zcode-config";
 
     /// <summary>The config-file whitelist shared by every Claude Desktop profile root.</summary>
     public static readonly IReadOnlyList<string> ProfileConfigFiles = new[]
@@ -167,8 +203,8 @@ public static class KnownStores
         "cowork-enabled-cli-ops.json", "developer_settings.json", "extensions-installations.json", "ant-device-registry.json",
     };
 
-    /// <summary>Files under ~\.claude that hold secrets. Never copied, in any mode.</summary>
-    public static readonly IReadOnlyList<string> SecretFiles = new[] { ".credentials.json", ".claude.json" };
+    /// <summary>Files that hold sign-in secrets. Never copied, in any mode, by any store. ".credentials.json" / ".claude.json" are Claude's (~\.claude); "credentials.json" is ZCode's (~\.zcode\v2\credentials.json) - no store roots at v2, and the name is skipped everywhere as defence in depth.</summary>
+    public static readonly IReadOnlyList<string> SecretFiles = new[] { ".credentials.json", ".claude.json", "credentials.json" };
 
     public static IReadOnlyList<StoreDefinition> Default(BackupOptions options) => new[]
     {
@@ -267,5 +303,42 @@ public static class KnownStores
             Dirs: new[] { "logs" },
             ShrinkGuard: false, Snapshot: true,
             Description: "config and logs of the packaged Claude Desktop's container profile") { Optional = true },
+
+        // ZCode (added 2026-10-02). All five are Optional for the cowork3p reason: the data root
+        // belongs to software installed on 2026-10-01 - if ZCode is ever uninstalled, or moves its
+        // root the way the desktop app moved into the MSIX container, five absent stores must be
+        // one INFO line each, not five nightly WARNs. Optional keeps the backup copy, copies again
+        // the moment the folders return, and store discovery never reports them as UNCOVERED.
+        new StoreDefinition(
+            ZcodeTranscripts, StoreMode.Tree, ClaudePaths.ZcodeRollout,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: true, Snapshot: false,
+            Description: "ZCode conversations - model-io-sess_<uuid>.jsonl, append-only request/response dumps (large; never snapshotted, same rule as code-transcripts)") { Optional = true },
+
+        new StoreDefinition(
+            ZcodeDb, StoreMode.Tree, ClaudePaths.ZcodeDb,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: new[] { "db.sqlite-shm" }, Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: true,
+            Description: "ZCode session index (db.sqlite + write-ahead log; -shm excluded - shared-memory state, meaningless without the writing process)") { Optional = true },
+
+        new StoreDefinition(
+            ZcodeArtifacts, StoreMode.Tree, ClaudePaths.ZcodeArtifacts,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: false,
+            Description: "ZCode per-session tool results and media (sess_<uuid>\\call_*-tool-result-*) - the images and big outputs the rollout logs reference") { Optional = true },
+
+        new StoreDefinition(
+            ZcodeMemories, StoreMode.Tree, ClaudePaths.ZcodeMemories,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: true,
+            Description: "ZCode persistent memory (memories\\projects\\<project>\\memory)") { Optional = true },
+
+        new StoreDefinition(
+            ZcodeConfig, StoreMode.Whitelist, ClaudePaths.ZcodeCli,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(),
+            Files: new[] { "config.json" },
+            Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: true,
+            Description: "ZCode config - registered MCP servers, hooks, plugins (the claude_desktop_config.json analogue)") { Optional = true },
     };
 }
