@@ -789,16 +789,18 @@ public sealed class MainViewModel : ViewModelBase
                 IncludeSubagents = _settings.IncludeSubagents,
                 BackupProjectsDir = Path.Combine(_settings.Destination, "live", "code-transcripts"),
                 BackupIndexDir = Path.Combine(_settings.Destination, "live", "cowork-index"),
+                Agents = AgentCatalog.DefaultSources(Path.Combine(_settings.Destination, "live")),
             };
 
             _catalog = await Task.Run(
                 () => _catalogBuilder.BuildAsync(options, null, CancellationToken.None),
                 CancellationToken.None).ConfigureAwait(true);
 
-            _allSessions = _catalog.Sessions;
+            _allSessions = MergeForDisplay(_catalog);
             ApplyCatalogFilter();
             UpdateRestoreLists();
-            StatusText = $"Catalog: {_catalog.Counts.Sessions} sessions";
+            StatusText = $"Catalog: {_catalog.Counts.Sessions} sessions" +
+                (_catalog.Counts.AgentSessions > 0 ? $" + {_catalog.Counts.AgentSessions} agent sessions" : "");
         }
         catch (NotImplementedException)
         {
@@ -824,7 +826,7 @@ public sealed class MainViewModel : ViewModelBase
             _catalog = JsonSerializer.Deserialize<SessionCatalog>(json);
             if (_catalog is not null)
             {
-                _allSessions = _catalog.Sessions;
+                _allSessions = MergeForDisplay(_catalog);
                 ApplyCatalogFilter();
                 UpdateRestoreLists();
                 StatusText = $"Catalog loaded: {_catalog.Counts.Sessions} sessions (from file)";
@@ -834,6 +836,35 @@ public sealed class MainViewModel : ViewModelBase
         {
             // Catalog file may not exist or be corrupt.
         }
+    }
+
+    /// <summary>
+    /// The grid shows Claude sessions and agent session files (zcode, codex, pi) as one list,
+    /// newest first; the merge is DISPLAY-only - restore planning and the catalog JSON keep the
+    /// two apart. Agent rows reuse SessionEntry so search, the size column and the Live/Backup
+    /// checkmarks work unchanged; TranscriptRel stays null, which keeps the transcript viewer
+    /// (a Claude-format reader) off formats that are not Claude's.
+    /// </summary>
+    private static List<SessionEntry> MergeForDisplay(SessionCatalog catalog)
+    {
+        if (catalog.AgentSessions.Count == 0) return catalog.Sessions;
+
+        var merged = new List<SessionEntry>(catalog.Sessions.Count + catalog.AgentSessions.Count);
+        merged.AddRange(catalog.Sessions);
+        merged.AddRange(catalog.AgentSessions.Select(a => new SessionEntry
+        {
+            CliSessionId = a.Name,
+            Title = a.Name,
+            TitleSource = "agent",
+            ProjectDir = a.Agent,
+            TranscriptRel = null,
+            TranscriptLive = a.Live,
+            TranscriptBackup = a.Backup,
+            Size = a.Size,
+            FirstMs = a.MtimeMs,
+            LastMs = a.MtimeMs,
+        }));
+        return merged.OrderByDescending(s => s.LastMs ?? 0).ToList();
     }
 
     private void ApplyCatalogFilter()

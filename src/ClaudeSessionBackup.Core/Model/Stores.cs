@@ -146,6 +146,56 @@ public static class ClaudePaths
     public static string ZcodeMemories => Path.Combine(ZcodeCli, "memories");
 }
 
+/// <summary>
+/// Where the OTHER coding agents keep session data. Roots catalogued from clean-my-agent's
+/// scanner providers (electron/lib/scanner-providers, main d714cdb) and checked on this machine
+/// 2026-10-10: only %USERPROFILE%\.codex existed, holding config.toml alone - so every agent
+/// store below is <see cref="StoreDefinition.Optional"/>: quiet while absent, copied the moment
+/// the agent is installed and used.
+///
+/// Deliberately NOT stores, and why:
+///  - Cursor's globalStorage: its state.vscdb carries the sign-in refresh token INSIDE the
+///    database, where a file-name exclusion cannot reach (the Claude-3p rule: a root that mixes
+///    secrets into undecodable state is never a store). Chats live per workspace in
+///    workspaceStorage, which IS a store.
+///  - Gemini (~\.gemini / ~\.config\gemini): the catalogue declares no Windows-specific root,
+///    nothing exists here to measure, and the root is where oauth_creds.json lives. Add it from
+///    a measured layout, not a guess; oauth_creds.json is already in SecretFiles.
+///  - OpenCode's desktop-shell variants (%APPDATA%\ai.opencode.desktop[.beta]\opencode): add
+///    when one is seen on disk; the three plain roots below are the catalogue's primary ones.
+/// </summary>
+public static class AgentPaths
+{
+    /// <summary>%USERPROFILE%\.codex - the Codex CLI home (config.toml beside auth.json, which SecretFiles blocks).</summary>
+    public static string CodexHome => Path.Combine(ClaudePaths.UserProfile, ".codex");
+
+    /// <summary>%USERPROFILE%\.codex\sessions - rollout-*.jsonl transcripts in dated subfolders.</summary>
+    public static string CodexSessions => Path.Combine(CodexHome, "sessions");
+
+    /// <summary>%USERPROFILE%\.codex\archived_sessions - the same shape, archived by the CLI.</summary>
+    public static string CodexArchive => Path.Combine(CodexHome, "archived_sessions");
+
+    /// <summary>%USERPROFILE%\.codex\tasks - task state beside the sessions.</summary>
+    public static string CodexTasks => Path.Combine(CodexHome, "tasks");
+
+    /// <summary>%APPDATA%\Cursor\User\workspaceStorage - one folder per workspace; chats live in each state.vscdb.</summary>
+    public static string CursorWorkspaceStorage =>
+        Path.Combine(ClaudePaths.AppData, "Cursor", "User", "workspaceStorage");
+
+    /// <summary>%LOCALAPPDATA%\opencode</summary>
+    public static string OpencodeLocal => Path.Combine(ClaudePaths.LocalAppData, "opencode");
+
+    /// <summary>%APPDATA%\opencode</summary>
+    public static string OpencodeRoaming => Path.Combine(ClaudePaths.AppData, "opencode");
+
+    /// <summary>%USERPROFILE%\.local\share\opencode - opencode's cross-platform data root (auth.json beside it is blocked by SecretFiles).</summary>
+    public static string OpencodeShare =>
+        Path.Combine(ClaudePaths.UserProfile, ".local", "share", "opencode");
+
+    /// <summary>%USERPROFILE%\.pi\agent\sessions - Pi agent JSONL transcripts.</summary>
+    public static string PiSessions => Path.Combine(ClaudePaths.UserProfile, ".pi", "agent", "sessions");
+}
+
 /// <summary>Options for one backup or verify run. Mirrors the PowerShell tool's switches one to one.</summary>
 public sealed partial class BackupOptions
 {
@@ -174,7 +224,7 @@ public sealed partial class BackupOptions
     public string ManifestFile => Path.Combine(Destination, "last_run.json");
 }
 
-/// <summary>The eighteen stores (seven required, eleven Optional). The single source of truth for what "a session store" means.</summary>
+/// <summary>The twenty-seven stores (seven required, twenty Optional). The single source of truth for what "a session store" means.</summary>
 public static class KnownStores
 {
     public const string CodeTranscripts = "code-transcripts";
@@ -195,6 +245,15 @@ public static class KnownStores
     public const string ZcodeArtifacts = "zcode-artifacts";
     public const string ZcodeMemories = "zcode-memories";
     public const string ZcodeConfig = "zcode-config";
+    public const string CodexSessions = "codex-sessions";
+    public const string CodexArchive = "codex-archive";
+    public const string CodexTasks = "codex-tasks";
+    public const string CodexConfig = "codex-config";
+    public const string CursorWorkspaces = "cursor-workspaces";
+    public const string OpencodeLocal = "opencode-local";
+    public const string OpencodeRoaming = "opencode-roaming";
+    public const string OpencodeShare = "opencode-share";
+    public const string PiSessions = "pi-sessions";
 
     /// <summary>The config-file whitelist shared by every Claude Desktop profile root.</summary>
     public static readonly IReadOnlyList<string> ProfileConfigFiles = new[]
@@ -203,8 +262,8 @@ public static class KnownStores
         "cowork-enabled-cli-ops.json", "developer_settings.json", "extensions-installations.json", "ant-device-registry.json",
     };
 
-    /// <summary>Files that hold sign-in secrets. Never copied, in any mode, by any store. ".credentials.json" / ".claude.json" are Claude's (~\.claude); "credentials.json" is ZCode's (~\.zcode\v2\credentials.json) - no store roots at v2, and the name is skipped everywhere as defence in depth.</summary>
-    public static readonly IReadOnlyList<string> SecretFiles = new[] { ".credentials.json", ".claude.json", "credentials.json" };
+    /// <summary>Files that hold sign-in secrets. Never copied, in any mode, by any store. ".credentials.json" / ".claude.json" are Claude's (~\.claude); "credentials.json" is ZCode's (~\.zcode\v2\credentials.json) - no store roots at v2, and the name is skipped everywhere as defence in depth. "auth.json" is Codex's (~\.codex) and opencode's (~\.local\share\opencode); "oauth_creds.json" is Gemini's (~\.gemini) - the codex-* stores root below or beside it and gemini has no store at all, but the names are blocked everywhere for the same reason.</summary>
+    public static readonly IReadOnlyList<string> SecretFiles = new[] { ".credentials.json", ".claude.json", "credentials.json", "auth.json", "oauth_creds.json" };
 
     public static IReadOnlyList<StoreDefinition> Default(BackupOptions options) => new[]
     {
@@ -340,5 +399,66 @@ public static class KnownStores
             Dirs: Array.Empty<string>(),
             ShrinkGuard: false, Snapshot: true,
             Description: "ZCode config - registered MCP servers, hooks, plugins (the claude_desktop_config.json analogue)") { Optional = true },
+
+        // The other coding agents (added 2026-10-10), roots per the AgentPaths catalogue. All
+        // Optional for the zcode reason: on this machine only ~\.codex existed (config.toml
+        // alone), and an agent never installed must cost one INFO line, not a nightly WARN.
+        // Session-shaped stores (append-only JSONL) take the shrink guard and are never
+        // snapshotted, the code-transcripts rule; small state snapshots.
+        new StoreDefinition(
+            CodexSessions, StoreMode.Tree, AgentPaths.CodexSessions,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: true, Snapshot: false,
+            Description: "Codex CLI conversations - rollout-*.jsonl in dated subfolders, append-only") { Optional = true },
+
+        new StoreDefinition(
+            CodexArchive, StoreMode.Tree, AgentPaths.CodexArchive,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: true, Snapshot: false,
+            Description: "Codex CLI archived conversations - the sessions tree's shape, moved here by the CLI") { Optional = true },
+
+        new StoreDefinition(
+            CodexTasks, StoreMode.Tree, AgentPaths.CodexTasks,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: true,
+            Description: "Codex CLI task state (small, beside the sessions; state may legitimately shrink)") { Optional = true },
+
+        new StoreDefinition(
+            CodexConfig, StoreMode.Whitelist, AgentPaths.CodexHome,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(),
+            Files: new[] { "config.toml" },
+            Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: true,
+            Description: "Codex CLI config (config.toml only - auth.json lives beside it and is never copied)") { Optional = true },
+
+        new StoreDefinition(
+            CursorWorkspaces, StoreMode.Tree, AgentPaths.CursorWorkspaceStorage,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: new[] { "state.vscdb-shm" }, Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: false,
+            Description: "Cursor per-workspace state incl. its chats (state.vscdb + -wal; -shm excluded, the zcode-db rule; globalStorage is deliberately NOT a store - its database carries the sign-in token)") { Optional = true },
+
+        new StoreDefinition(
+            OpencodeLocal, StoreMode.Tree, AgentPaths.OpencodeLocal,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: false,
+            Description: "OpenCode data under %LOCALAPPDATA% (one of its three catalogued roots)") { Optional = true },
+
+        new StoreDefinition(
+            OpencodeRoaming, StoreMode.Tree, AgentPaths.OpencodeRoaming,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: false,
+            Description: "OpenCode data under %APPDATA% (the desktop-shell variants are added when seen on disk)") { Optional = true },
+
+        new StoreDefinition(
+            OpencodeShare, StoreMode.Tree, AgentPaths.OpencodeShare,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: false, Snapshot: false,
+            Description: "OpenCode cross-platform data root (~\\.local\\share\\opencode; auth.json beside it is never copied)") { Optional = true },
+
+        new StoreDefinition(
+            PiSessions, StoreMode.Tree, AgentPaths.PiSessions,
+            ExcludeDirs: Array.Empty<string>(), ExcludeFiles: Array.Empty<string>(), Files: Array.Empty<string>(), Dirs: Array.Empty<string>(),
+            ShrinkGuard: true, Snapshot: false,
+            Description: "Pi agent conversations (~\\.pi\\agent\\sessions, JSONL, append-only)") { Optional = true },
     };
 }

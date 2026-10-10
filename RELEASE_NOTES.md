@@ -1,3 +1,32 @@
+# Claude Session Backup 1.0.6
+
+Released 2026-10-10. Upgrade in place with `ClaudeSessionBackup-1.0.6-Setup.exe`; close the app first,
+the installer waits on its mutex.
+
+## Added
+
+- **The other coding agents are backed up too.** Nine new stores, all Optional (quiet while the agent
+  is not installed, copied the moment it is): `codex-sessions`, `codex-archive` and `codex-tasks`
+  under `~\.codex`, `codex-config` (whitelist, `config.toml` only - `auth.json` lives beside it and is
+  never copied), `cursor-workspaces` (`%APPDATA%\Cursor\User\workspaceStorage`, the chats;
+  `state.vscdb-shm` excluded, and `globalStorage` is deliberately NOT a store because its database
+  carries the sign-in token inside), the three catalogued OpenCode roots (`%LOCALAPPDATA%\opencode`,
+  `%APPDATA%\opencode`, `~\.local\share\opencode`) and `pi-sessions` (`~\.pi\agent\sessions`).
+  `auth.json` and `oauth_creds.json` joined the secret deny set, so no store - present or future -
+  can copy a sign-in file.
+- **Agent sessions show in the catalog.** The catalog now lists the session FILES of the non-Claude
+  agents (ZCode, Codex, Pi) from the live roots and the backup copy: name, size, last write, live
+  and backup presence - file facts only, because those formats are each agent's own. They appear in
+  the Catalog page's grid beside the Claude sessions (searchable; project column = agent name), in
+  `sessions_catalog.json` under `agent_sessions`, in a section of `sessions_catalog.md`, and
+  `catalog --report` prints a per-agent summary plus an `AGENT-NOT-IN-BACKUP` list.
+
+## Fixed
+
+- **ZCode sessions were invisible in the catalog.** 1.0.5 backed the rollouts up but the catalog
+  scanned only Claude's `projects` tree, so the Catalog page never showed them - the agent-sessions
+  listing above is the fix.
+
 # Claude Session Backup 1.0.5
 
 Released 2026-10-02. Upgrade in place with `ClaudeSessionBackup-1.0.5-Setup.exe`; close the app first,

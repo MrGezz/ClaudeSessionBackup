@@ -707,13 +707,14 @@ public class EngineTests : IDisposable
     }
 
     [Fact]
-    public void Engine_EighteenStores_DefaultFactoryReturnsEighteen()
+    public void Engine_TwentySevenStores_DefaultFactoryReturnsTwentySeven()
     {
-        // The default factory produces exactly 18 stores (7 core + 11 optional: 2 cowork3p-* +
-        // 4 msix-* + 5 zcode-*). A pure structural assertion that never reads live paths.
+        // The default factory produces exactly 27 stores (7 core + 20 optional: 2 cowork3p-* +
+        // 4 msix-* + 5 zcode-* + 9 agent stores). A pure structural assertion that never reads
+        // live paths.
         var dest = Path.Combine(_tmp, "dest");
         var opts = Options(dest);
-        Assert.Equal(18, KnownStores.Default(opts).Count);
+        Assert.Equal(27, KnownStores.Default(opts).Count);
     }
 
     [Fact]
@@ -1069,8 +1070,10 @@ public class EngineTests : IDisposable
     /// The stores whose source may legitimately be absent: the four msix-* stores (the Store
     /// package's container, present only where the app runs virtualised), the two cowork3p-*
     /// stores (a dormant second profile whose session folders went away on 2026-09-20 while
-    /// its root stayed), and - since 2026-10-02 - the five zcode-* stores (ZCode was installed
-    /// 2026-10-01; an uninstall or a moved data root must be INFO, not five nightly WARNs).
+    /// its root stayed), since 2026-10-02 the five zcode-* stores (ZCode was installed
+    /// 2026-10-01; an uninstall or a moved data root must be INFO, not five nightly WARNs),
+    /// and since 2026-10-10 the nine agent stores (Codex, Cursor, OpenCode, Pi - on the machine
+    /// that defined them only ~\.codex existed, holding config.toml alone).
     /// </summary>
     private static readonly HashSet<string> OptionalStoreNames = new()
     {
@@ -1078,13 +1081,17 @@ public class EngineTests : IDisposable
         KnownStores.Cowork3pIndex, KnownStores.Cowork3pAgentMode,
         KnownStores.ZcodeTranscripts, KnownStores.ZcodeDb, KnownStores.ZcodeArtifacts,
         KnownStores.ZcodeMemories, KnownStores.ZcodeConfig,
+        KnownStores.CodexSessions, KnownStores.CodexArchive, KnownStores.CodexTasks, KnownStores.CodexConfig,
+        KnownStores.CursorWorkspaces,
+        KnownStores.OpencodeLocal, KnownStores.OpencodeRoaming, KnownStores.OpencodeShare,
+        KnownStores.PiSessions,
     };
 
     [Fact]
-    public void KnownStores_ElevenOptionalStoresAreOptional()
+    public void KnownStores_TwentyOptionalStoresAreOptional()
     {
-        // Structural: the four msix-*, the two cowork3p-* and the five zcode-* stores must all
-        // have Optional = true.
+        // Structural: the four msix-*, the two cowork3p-*, the five zcode-* and the nine agent
+        // stores must all have Optional = true.
         var stores = KnownStores.Default(new BackupOptions());
         foreach (var name in OptionalStoreNames)
         {
@@ -1166,13 +1173,91 @@ public class EngineTests : IDisposable
         Assert.Empty(store.Dirs);
     }
 
+    // -------------------------------------------------------------------------
+    // Agent stores (added 2026-10-10): Codex, Cursor, OpenCode, Pi
+    // -------------------------------------------------------------------------
+
     [Fact]
-    public void KnownStores_SecretFiles_CoverZcodeCredentials()
+    public void KnownStores_CodexStores_RootAtCodexHome_ConfigWhitelistOnly()
+    {
+        // Structural: the three codex trees live under ~\.codex; the config store is Whitelist
+        // with config.toml alone, because auth.json (the sign-in secret) lives beside it.
+        var stores = KnownStores.Default(new BackupOptions());
+        var home = AgentPaths.CodexHome + Path.DirectorySeparatorChar;
+
+        foreach (var name in new[] { KnownStores.CodexSessions, KnownStores.CodexArchive, KnownStores.CodexTasks })
+        {
+            var s = stores.Single(x => x.Name == name);
+            Assert.Equal(StoreMode.Tree, s.Mode);
+            Assert.StartsWith(home, s.Source + "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var cfg = stores.Single(s => s.Name == KnownStores.CodexConfig);
+        Assert.Equal(StoreMode.Whitelist, cfg.Mode);
+        Assert.Equal(AgentPaths.CodexHome, cfg.Source);
+        Assert.Equal(new[] { "config.toml" }, cfg.Files);
+        Assert.Empty(cfg.Dirs);
+        Assert.DoesNotContain("auth.json", cfg.Files);
+    }
+
+    [Fact]
+    public void KnownStores_AgentTranscriptStores_ShrinkGuardedNeverSnapshotted()
+    {
+        // codex-sessions, codex-archive and pi-sessions are append-only JSONL like
+        // code-transcripts: shrink guard yes, snapshot no.
+        var stores = KnownStores.Default(new BackupOptions());
+        foreach (var name in new[] { KnownStores.CodexSessions, KnownStores.CodexArchive, KnownStores.PiSessions })
+        {
+            var s = stores.Single(x => x.Name == name);
+            Assert.True(s.ShrinkGuard, $"{name}: append-only transcripts take the shrink guard");
+            Assert.False(s.Snapshot, $"{name}: transcript trees follow code-transcripts into live\\ only");
+        }
+    }
+
+    [Fact]
+    public void KnownStores_CursorWorkspaces_ExcludesShm_AndGlobalStorageIsNeverAStore()
+    {
+        // workspaceStorage holds the chats (state.vscdb per workspace; -shm excluded, the
+        // zcode-db rule). globalStorage's database carries the sign-in token INSIDE it, where a
+        // file-name exclusion cannot reach - no store may root there, ever.
+        var stores = KnownStores.Default(new BackupOptions());
+
+        var ws = stores.Single(s => s.Name == KnownStores.CursorWorkspaces);
+        Assert.Equal(StoreMode.Tree, ws.Mode);
+        Assert.Contains("state.vscdb-shm", ws.ExcludeFiles);
+
+        foreach (var s in stores)
+        {
+            Assert.DoesNotContain("globalStorage",
+                s.Source, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void KnownStores_OpencodeStores_AreTreeOptionalRoots()
+    {
+        // The three catalogued opencode roots, Tree mode; auth.json beside the share root is
+        // covered by the SecretFiles deny set rather than per-store excludes.
+        var stores = KnownStores.Default(new BackupOptions());
+        foreach (var name in new[] { KnownStores.OpencodeLocal, KnownStores.OpencodeRoaming, KnownStores.OpencodeShare })
+        {
+            var s = stores.Single(x => x.Name == name);
+            Assert.Equal(StoreMode.Tree, s.Mode);
+            Assert.True(s.Optional);
+        }
+    }
+
+    [Fact]
+    public void KnownStores_SecretFiles_CoverAgentSignIns()
     {
         // "~\.zcode\v2 holds credentials.json" is a never-a-store rule like the Claude-3p root;
         // the name must also sit in the global deny set so no future store can copy it anywhere.
+        // Codex and opencode keep auth.json beside their data, Gemini keeps oauth_creds.json in
+        // its home: the same rule, the same deny set.
         Assert.Contains("credentials.json", KnownStores.SecretFiles);
         Assert.Contains(".credentials.json", KnownStores.SecretFiles);
+        Assert.Contains("auth.json", KnownStores.SecretFiles);
+        Assert.Contains("oauth_creds.json", KnownStores.SecretFiles);
     }
 
     // -------------------------------------------------------------------------

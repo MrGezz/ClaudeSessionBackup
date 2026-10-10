@@ -22,10 +22,11 @@ internal static class DemoDataSource
 
     /// <summary>
     /// Builds a <see cref="RunManifest"/> that populates the Dashboard table
-    /// with 18 plausible rows: the seven Claude core stores Ok, six optional
-    /// and absent (the two cowork3p-* stores and the four msix-* stores), and
-    /// the five zcode-* stores Ok (Optional in real life, present here the way
-    /// they are on the machine the demo imitates).
+    /// with 27 plausible rows: the seven Claude core stores Ok, the five
+    /// zcode-* stores Ok, codex-config Ok (one config.toml), and the other
+    /// optional stores absent (two cowork3p-*, four msix-*, the remaining
+    /// eight agent stores) - present or absent the way they are on the
+    /// machine the demo imitates.
     /// </summary>
     public static RunManifest BuildManifest()
     {
@@ -49,6 +50,15 @@ internal static class DemoDataSource
             S("zcode-artifacts",  StoreStatus.Ok,       61,     5_400_000L,   61,     5_400_000L,  4,   57, 0, 0),
             S("zcode-memories",   StoreStatus.Ok,        9,       380_000L,    9,       380_000L,  5,    4, 0, 0),
             S("zcode-config",     StoreStatus.Ok,        1,         3_000L,    1,         3_000L,  1,    0, 0, 0),
+            S("codex-sessions",   StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("codex-archive",    StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("codex-tasks",      StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("codex-config",     StoreStatus.Ok,        1,         2_000L,    1,         2_000L,  1,    0, 0, 0),
+            S("cursor-workspaces",StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("opencode-local",   StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("opencode-roaming", StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("opencode-share",   StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
+            S("pi-sessions",      StoreStatus.SourceMissing, 0, 0, 0, 0, 0, 0, 0, 0),
         };
 
         return new RunManifest(
@@ -72,7 +82,7 @@ internal static class DemoDataSource
         $"{DemoStamp.AddSeconds(2):yyyy-MM-dd HH:mm:ss} [INFO] code-transcripts     1,203 files seen,    12 copied,  1,191 unchanged",
         $"{DemoStamp.AddSeconds(5):yyyy-MM-dd HH:mm:ss} [INFO] cowork-index            38 files seen,     1 copied,    37 unchanged",
         $"{DemoStamp.AddSeconds(9):yyyy-MM-dd HH:mm:ss} [INFO] zcode-transcripts        27 files seen,     2 copied,    25 unchanged",
-        $"{DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} [INFO] done: {DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} backup 18 stores, 0 warnings, 23s",
+        $"{DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} [INFO] done: {DemoStamp.AddSeconds(23):yyyy-MM-dd HH:mm:ss} backup 27 stores, 0 warnings, 23s",
     };
 
     public static string LastRunSummary =>

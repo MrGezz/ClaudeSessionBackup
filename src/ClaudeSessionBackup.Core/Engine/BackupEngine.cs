@@ -345,6 +345,7 @@ public sealed partial class BackupEngine : IBackupEngine
                 BackupIndexDir = Path.Combine(options.LiveRoot, KnownStores.CoworkIndex),
                 OutDir = options.CatalogDir,
                 IncludeSubagents = options.IncludeSubagents,
+                Agents = AgentCatalog.DefaultSources(options.LiveRoot),
             };
 
             var catalog = await _catalog.BuildAsync(catalogOptions,

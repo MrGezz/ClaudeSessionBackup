@@ -1,8 +1,10 @@
 # ClaudeSessionBackup
 
-Backup tools for Claude and ZCode. A Windows desktop app plus headless CLI that backs up every
-conversation store Claude Desktop (Cowork), Claude Code and ZCode keep on this machine into a folder
-neither app touches, keeps a session catalog, and can rebuild a wiped Cowork sidebar from that catalog.
+Backup tools for Claude, ZCode and the other coding agents. A Windows desktop app plus headless CLI
+that backs up every conversation store Claude Desktop (Cowork), Claude Code and ZCode keep on this
+machine - and, the moment they are installed, Codex, Cursor, OpenCode and Pi - into a folder none of
+the apps touch, keeps a session catalog (Claude sessions joined with the sidebar; agent session files
+listed beside them), and can rebuild a wiped Cowork sidebar from that catalog.
 
 The C# tool is the authoritative implementation.
 
@@ -34,7 +36,7 @@ The screenshots below are captured from the app running in demo mode (`--demo`, 
 `tools\Capture-Screenshots.ps1 -Demo`. The demo marker at `docs\screenshots\.demo` is verified by
 `tools\Check-Privacy.ps1` (gate 7): it records each screenshot's SHA-256, so a screenshot that did not come out of demo mode fails the gate and no real session data enters a tracked file.
 
-Dashboard after a backup run - the eighteen stores, live and backup counts, status, the run log:
+Dashboard after a backup run - the twenty-seven stores, live and backup counts, status, the run log:
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -65,7 +67,7 @@ Light theme:
 Six pages behind a nav rail, dark/light CM2 theme, single instance. Run with `--demo` for a fictional
 dataset (no live stores read):
 
-* **Dashboard** - the eighteen stores with live vs backup counts and a status pill, Backup now / Verify / Cancel,
+* **Dashboard** - the twenty-seven stores with live vs backup counts and a status pill, Backup now / Verify / Cancel,
   last-run summary, scheduled-task status, and the run log.
 * **Catalog** - every session (title, project, prompts/replies, size, live, backup, sidebar record), search,
   LOST / DANGLING / deleted-in-app flags, open a transcript's folder. Open a session to view its transcript.
@@ -104,6 +106,15 @@ so a crash you clicked away is still diagnosable.
 | `zcode-artifacts` | `~\.zcode\cli\artifacts` | per-session tool results and media the rollout logs reference; never snapshotted; **Optional** |
 | `zcode-memories` | `~\.zcode\cli\memories` | ZCode's persistent per-project memory; **Optional** |
 | `zcode-config` | `~\.zcode\cli` | whitelist: `config.json` only (registered MCP servers, hooks, plugins). The root also holds `exec\`, `log\` and `plugins\` (ephemeral / cache) and is deliberately not copied wholesale; `~\.zcode\v2` holds `credentials.json` and is NEVER a store |
+| `codex-sessions` | `~\.codex\sessions` | Codex CLI conversations - `rollout-*.jsonl` in dated subfolders, append-only; shrink-guarded, never snapshotted; **Optional** |
+| `codex-archive` | `~\.codex\archived_sessions` | archived Codex conversations - the sessions tree's shape and rules; **Optional** |
+| `codex-tasks` | `~\.codex\tasks` | Codex task state (small, snapshotted); **Optional** |
+| `codex-config` | `~\.codex` | whitelist: `config.toml` only - `auth.json` lives beside it and is never copied; **Optional** |
+| `cursor-workspaces` | `%APPDATA%\Cursor\User\workspaceStorage` | Cursor per-workspace state incl. its chats (`state.vscdb` + `-wal`; `-shm` excluded). `globalStorage` is deliberately NOT a store: its database carries the sign-in token inside, where a file exclusion cannot reach; **Optional** |
+| `opencode-local` | `%LOCALAPPDATA%\opencode` | OpenCode data (one of its three catalogued roots); **Optional** |
+| `opencode-roaming` | `%APPDATA%\opencode` | OpenCode data; the desktop-shell variants (`ai.opencode.desktop*`) are added when one is seen on disk; **Optional** |
+| `opencode-share` | `~\.local\share\opencode` | OpenCode's cross-platform data root; `auth.json` beside it is never copied; **Optional** |
+| `pi-sessions` | `~\.pi\agent\sessions` | Pi agent conversations (JSONL, append-only); shrink-guarded, never snapshotted; **Optional** |
 
 Destination default `%USERPROFILE%\Claude\_claude_sessions_backup\`: `live\`, `snapshots\<stamp>_claude-stores.zip`,
 `catalog\sessions_catalog.json|.md|.previous.json`, `logs\`, `quarantine\`, `_to_delete\`, `backup.log`, `last_run.json`.
@@ -160,7 +171,7 @@ per-size renders under `build\icon\` are intermediates and are git-ignored.
 
 ### Quick start (installer)
 
-Download `ClaudeSessionBackup-1.0.5-Setup.exe` from the repository's **Releases page** and run it.
+Download `ClaudeSessionBackup-1.0.6-Setup.exe` from the repository's **Releases page** and run it.
 
 The wizard installs per-user to `%LOCALAPPDATA%\Programs\ClaudeSessionBackup` — no administrator rights
 needed or requested. It creates a Start Menu entry; the desktop shortcut and the daily backup task are
@@ -182,7 +193,7 @@ The installer is self-contained — no .NET installation required.
 
 ### Quick start (zip)
 
-1. Download `ClaudeSessionBackup-1.0.5-win-x64.zip` from the Releases page.
+1. Download `ClaudeSessionBackup-1.0.6-win-x64.zip` from the Releases page.
 2. Right-click the zip > **Properties** > tick **Unblock** > OK. (Windows marks
    downloaded archives as blocked; unblocking before extracting clears the mark on
    all files inside. Unblocking after extraction does not.)
@@ -236,7 +247,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\Package.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\Make-Installer.ps1 -SkipPackage
 ```
 
-`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.5-win-x64.zip` (self-contained, ~65 MB).
+`Package.ps1` produces `dist\ClaudeSessionBackup-1.0.6-win-x64.zip` (self-contained, ~65 MB).
 Running it first and then pointing `Make-Installer.ps1 -SkipPackage` at that exact payload is
 what guarantees the zip and the Setup.exe are the same build. `Make-Installer.ps1` also writes
 `dist\SHA256SUMS.txt` for both files (LF line endings, the format `sha256sum -c` reads).

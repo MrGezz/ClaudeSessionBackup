@@ -540,6 +540,7 @@ internal static class Program
             OutDir = catalogDir,
             IncludeSubagents = includeSubagents,
             NoCache = cmd.NoCache,
+            Agents = AgentCatalog.DefaultSources(liveRoot),
         };
 
         var builder = new CatalogBuilder();
@@ -594,6 +595,27 @@ internal static class Program
                 project = (project ?? "").Length > 26 ? project![..26] : (project ?? "").PadRight(26);
                 var title = (s.Title ?? "").Length > 70 ? s.Title![..70] : s.Title ?? "";
                 Console.WriteLine($"  {label,-13} {lastDate}  {project}  {title}");
+            }
+        }
+
+        // Non-Claude agents: one summary line per agent, then the live files a backup run
+        // has not copied yet (the actionable list).
+        if (catalog.AgentSessions.Count > 0)
+        {
+            foreach (var g in catalog.AgentSessions.GroupBy(a => a.Agent).OrderBy(g => g.Key))
+            {
+                int missing = g.Count(a => a.Live && !a.Backup);
+                Console.WriteLine($"  AGENT         {g.Key}: {g.Count()} session files" +
+                                  (missing > 0 ? $", {missing} not yet in backup" : ""));
+            }
+
+            foreach (var a in catalog.AgentSessions.Where(a => a.Live && !a.Backup))
+            {
+                var lastDate = a.MtimeMs > 0
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(a.MtimeMs).LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                    : "                ";
+                var agent = a.Agent.Length > 26 ? a.Agent[..26] : a.Agent.PadRight(26);
+                Console.WriteLine($"  AGENT-NOT-IN-BACKUP {lastDate}  {agent}  {a.Name}");
             }
         }
     }

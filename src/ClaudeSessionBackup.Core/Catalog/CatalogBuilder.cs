@@ -254,6 +254,11 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
         // ── Agent-mode listing ─────────────────────────────────────────────────
         var agentMode = options.AgentModeDir is { } amd ? ListAgentMode(amd) : new List<AgentModeEntry>();
 
+        // ── Non-Claude agent sessions (zcode, codex, pi): file facts, no parsing ──
+        var agentSessions = ListAgentSessions(options.Agents);
+        if (options.Agents.Count > 0)
+            Log(LogLevel.Info, $"Agent sessions: {agentSessions.Count} across {options.Agents.Count} source(s).");
+
         // ── Counts ────────────────────────────────────────────────────────────
         var counts = new CatalogCounts
         {
@@ -272,6 +277,8 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
                 : 0,
             Rescanned = rescanned,
             AgentModeEntries = agentMode.Count,
+            AgentSessions = agentSessions.Count,
+            AgentNotInBackup = agentSessions.Count(a => a.Live && !a.Backup),
         };
 
         var sources = new CatalogSources
@@ -294,6 +301,7 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
             DeletedMarkers = deletedMarkers.OrderBy(m => m).ToList(),
             Sessions = rows,
             AgentMode = agentMode,
+            AgentSessions = agentSessions,
         };
 
         // ── Save cache ─────────────────────────────────────────────────────────
@@ -313,7 +321,7 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
 
         Log(LogLevel.Info,
             $"catalog: {counts.Sessions} sessions ({counts.TranscriptsLive} live, {counts.TranscriptsBackup} backup), " +
-            $"{counts.IndexRecords} sidebar records, rescanned {rescanned} -> {outJson}");
+            $"{counts.IndexRecords} sidebar records, {counts.AgentSessions} agent sessions, rescanned {rescanned} -> {outJson}");
 
         return catalog;
     }
@@ -441,6 +449,63 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
         }
 
         return (records, deleted);
+    }
+
+    // ── Non-Claude agent sessions ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Lists every session FILE under each agent source's live and backup roots, joined on the
+    /// path relative to the root (forward slashes). File facts only - name, size, mtime, where it
+    /// exists - because each agent's format is its own and the files can be hundreds of MB.
+    /// Newest first by mtime; the live copy's facts win when both sides have the file.
+    /// </summary>
+    private static List<AgentSessionEntry> ListAgentSessions(IReadOnlyList<AgentCatalogSource> sources)
+    {
+        var result = new List<AgentSessionEntry>();
+
+        foreach (var src in sources)
+        {
+            var byRel = new Dictionary<string, AgentSessionEntry>(StringComparer.OrdinalIgnoreCase);
+
+            void Walk(string? root, bool isLive)
+            {
+                if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return;
+                foreach (string file in Directory.EnumerateFiles(root, src.Pattern, TreeScanner.SafeRecursive))
+                {
+                    string rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+                    if (!byRel.TryGetValue(rel, out var entry))
+                    {
+                        byRel[rel] = entry = new AgentSessionEntry
+                        {
+                            Agent = src.Agent,
+                            Rel = rel,
+                            Name = Path.GetFileNameWithoutExtension(file),
+                        };
+                    }
+
+                    // The live copy's size/mtime win; a backup-only file supplies them itself.
+                    if (isLive || !entry.Live)
+                    {
+                        try
+                        {
+                            var fi = new FileInfo(file);
+                            entry.Size = fi.Length;
+                            entry.MtimeMs = (long)fi.LastWriteTimeUtc
+                                .Subtract(DateTimeOffset.UnixEpoch.UtcDateTime).TotalMilliseconds;
+                        }
+                        catch { /* a file deleted mid-walk keeps its zeros */ }
+                    }
+
+                    if (isLive) entry.Live = true; else entry.Backup = true;
+                }
+            }
+
+            Walk(src.LiveDir, isLive: true);
+            Walk(src.BackupDir, isLive: false);
+            result.AddRange(byRel.Values);
+        }
+
+        return result.OrderByDescending(a => a.MtimeMs).ToList();
     }
 
     // ── Agent-mode listing ────────────────────────────────────────────────────
@@ -971,6 +1036,32 @@ public sealed partial class CatalogBuilder : ICatalogBuilder
         {
             var names = agentMode.Select(a => a.Name).Distinct().OrderBy(n => n).Take(12);
             sb.AppendLine($"Agent-mode store: {agentMode.Count} entries ({string.Join(", ", names)}).");
+        }
+
+        if (catalog.AgentSessions.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Agent sessions (zcode, codex, pi)");
+            sb.AppendLine();
+            foreach (var g in catalog.AgentSessions.GroupBy(a => a.Agent).OrderBy(g => g.Key))
+            {
+                int missing = g.Count(a => a.Live && !a.Backup);
+                sb.AppendLine($"{g.Key}: {g.Count()} session files" +
+                              (missing > 0 ? $", {missing} not yet in backup" : "") + ".");
+            }
+            sb.AppendLine();
+            sb.AppendLine("| # | Agent | Last write | Session file | Size | Live | Backup |");
+            sb.AppendLine("|---|---|---|---|---|---|---|");
+            int j = 1;
+            foreach (var a in catalog.AgentSessions)
+            {
+                sb.AppendLine($"| {j} | {a.Agent} | {FmtMs(a.MtimeMs)} | {a.Name.Replace("|", "\\|")} | " +
+                              $"{HumanSize(a.Size)} | {(a.Live ? "yes" : "no")} | {(a.Backup ? "yes" : "no")} |");
+                j++;
+            }
+            sb.AppendLine();
+            sb.AppendLine("## Claude sessions");
+            sb.AppendLine();
         }
 
         sb.AppendLine("| # | Last activity | Project | Title | Prompts/Replies | Size | Live | Backup | Sidebar | cliSessionId |");

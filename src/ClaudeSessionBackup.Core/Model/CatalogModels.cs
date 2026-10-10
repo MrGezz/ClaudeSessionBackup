@@ -83,6 +83,69 @@ public sealed partial class IndexRecord
     public bool Flagged { get; set; }
 }
 
+/// <summary>
+/// One session file of a NON-Claude agent (ZCode, Codex, Pi), listed in the catalog from the
+/// live root and the backup copy. File facts only - these formats are each agent's own, so the
+/// catalog never parses them (the zcode rollouts alone were 516 MB when measured); name, size
+/// and mtime answer "what sessions exist, and is each one backed up".
+/// </summary>
+public sealed partial class AgentSessionEntry
+{
+    /// <summary>"zcode" | "codex" | "codex-archive" | "pi" - the source list's agent label.</summary>
+    [JsonPropertyName("agent")] public string Agent { get; set; } = "";
+
+    /// <summary>Path relative to the agent's live root, forward slashes (the live/backup join key).</summary>
+    [JsonPropertyName("rel")] public string Rel { get; set; } = "";
+
+    /// <summary>File name without extension (e.g. "model-io-sess_&lt;uuid&gt;").</summary>
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+    [JsonPropertyName("size")] public long Size { get; set; }
+    [JsonPropertyName("mtime_ms")] public long MtimeMs { get; set; }
+    [JsonPropertyName("live")] public bool Live { get; set; }
+    [JsonPropertyName("backup")] public bool Backup { get; set; }
+}
+
+/// <summary>One agent root the catalog lists: where its session files live, and where the backup copy is.</summary>
+public sealed partial class AgentCatalogSource
+{
+    public AgentCatalogSource(string agent, string? liveDir, string? backupDir)
+    {
+        Agent = agent;
+        LiveDir = liveDir;
+        BackupDir = backupDir;
+    }
+
+    public string Agent { get; }
+    public string? LiveDir { get; }
+    public string? BackupDir { get; }
+
+    /// <summary>Session-file pattern under the roots (recursive; Codex nests by date).</summary>
+    public string Pattern { get; init; } = "*.jsonl";
+}
+
+/// <summary>The agent sources every catalog build lists - the one place the set is defined.</summary>
+public static class AgentCatalog
+{
+    /// <summary>
+    /// ZCode, Codex (live + archive) and Pi: the agents whose stores are file-per-session JSONL.
+    /// Cursor and OpenCode are backed up by their stores but keep sessions inside databases and
+    /// nested JSON state, so a per-file listing would mislead - they are deliberately absent here.
+    /// <paramref name="backupLiveRoot"/> is &lt;destination&gt;\live, or null for a live-only listing.
+    /// </summary>
+    public static IReadOnlyList<AgentCatalogSource> DefaultSources(string? backupLiveRoot)
+    {
+        string? B(string store) => backupLiveRoot is null ? null : Path.Combine(backupLiveRoot, store);
+        return new[]
+        {
+            new AgentCatalogSource("zcode", ClaudePaths.ZcodeRollout, B(KnownStores.ZcodeTranscripts)),
+            new AgentCatalogSource("codex", AgentPaths.CodexSessions, B(KnownStores.CodexSessions)),
+            new AgentCatalogSource("codex-archive", AgentPaths.CodexArchive, B(KnownStores.CodexArchive)),
+            new AgentCatalogSource("pi", AgentPaths.PiSessions, B(KnownStores.PiSessions)),
+        };
+    }
+}
+
 public sealed partial class AgentModeEntry
 {
     [JsonPropertyName("account")] public string Account { get; set; } = "";
@@ -107,6 +170,12 @@ public sealed partial class CatalogCounts
     [JsonPropertyName("live_not_in_backup")] public int LiveNotInBackup { get; set; }
     [JsonPropertyName("rescanned")] public int Rescanned { get; set; }
     [JsonPropertyName("agent_mode_entries")] public int AgentModeEntries { get; set; }
+
+    /// <summary>Non-Claude agent session files listed (zcode, codex, codex-archive, pi).</summary>
+    [JsonPropertyName("agent_sessions")] public int AgentSessions { get; set; }
+
+    /// <summary>Of those, live files whose backup copy is missing.</summary>
+    [JsonPropertyName("agent_not_in_backup")] public int AgentNotInBackup { get; set; }
 }
 
 public sealed partial class CatalogSources
@@ -130,6 +199,9 @@ public sealed partial class SessionCatalog
     /// <summary>Newest first by <see cref="SessionEntry.LastMs"/>.</summary>
     [JsonPropertyName("sessions")] public List<SessionEntry> Sessions { get; set; } = new();
     [JsonPropertyName("agent_mode")] public List<AgentModeEntry> AgentMode { get; set; } = new();
+
+    /// <summary>Non-Claude agent session files (zcode, codex, codex-archive, pi), newest first by mtime.</summary>
+    [JsonPropertyName("agent_sessions")] public List<AgentSessionEntry> AgentSessions { get; set; } = new();
 }
 
 /// <summary>Inputs to the catalog builder. Paths null = that source is skipped.</summary>
@@ -152,4 +224,10 @@ public sealed partial class CatalogOptions
 
     /// <summary>Re-scan every transcript instead of trusting catalog_cache.json.</summary>
     public bool NoCache { get; set; }
+
+    /// <summary>
+    /// Non-Claude agent roots to list (file facts only, no parsing). Callers pass
+    /// <see cref="AgentCatalog.DefaultSources"/> with their backup live root; empty = none listed.
+    /// </summary>
+    public IReadOnlyList<AgentCatalogSource> Agents { get; set; } = Array.Empty<AgentCatalogSource>();
 }

@@ -871,4 +871,98 @@ public class CatalogTests : IDisposable
         Assert.True(entry.FirstPrompt!.Contains(realPromptText),
             "first_prompt must skip isMeta:true records and use the first real prompt.");
     }
+
+    // -------------------------------------------------------------------------
+    // Non-Claude agent sessions (zcode, codex, pi)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AgentSessions_ListedFromLiveAndBackup_JoinedOnRelPath()
+    {
+        // An agent source lists session FILES only (no parsing): a live-only, a both-sides and
+        // a backup-only file must appear once each with the right flags, nested folders included
+        // (Codex nests sessions by date), newest first by mtime, and the LIVE copy's size wins.
+        var live = Path.Combine(_tmp, "zcode-live");
+        var back = Path.Combine(_tmp, "zcode-back");
+        Directory.CreateDirectory(Path.Combine(live, "sub"));
+        Directory.CreateDirectory(Path.Combine(back, "sub"));
+
+        var liveOnly = Path.Combine(live, "model-io-sess_live-only.jsonl");
+        File.WriteAllText(liveOnly, "{\"x\":1}\n");
+        File.WriteAllText(Path.Combine(live, "sub", "model-io-sess_both.jsonl"), "{\"x\":1}\n{\"x\":2}\n");
+        File.WriteAllText(Path.Combine(back, "sub", "model-io-sess_both.jsonl"), "{\"x\":1}\n");
+        File.WriteAllText(Path.Combine(back, "model-io-sess_backup-only.jsonl"), "{\"x\":1}\n");
+        File.SetLastWriteTimeUtc(liveOnly, DateTime.UtcNow.AddDays(-1));
+
+        var options = MakeOptions();
+        options.Agents = new[] { new AgentCatalogSource("zcode", live, back) };
+
+        var cat = await new CatalogBuilder().BuildAsync(options, null, CancellationToken.None);
+
+        Assert.Equal(3, cat.AgentSessions.Count);
+        Assert.Equal(3, cat.Counts.AgentSessions);
+        Assert.Equal(1, cat.Counts.AgentNotInBackup);
+
+        var both = cat.AgentSessions.Single(a => a.Name == "model-io-sess_both");
+        Assert.True(both.Live);
+        Assert.True(both.Backup);
+        Assert.Equal("sub/model-io-sess_both.jsonl", both.Rel);
+        Assert.True(both.Size > 10, "the LIVE copy's size must win (two lines, not the backup's one)");
+
+        var liveOnlyEntry = cat.AgentSessions.Single(a => a.Name == "model-io-sess_live-only");
+        Assert.True(liveOnlyEntry.Live);
+        Assert.False(liveOnlyEntry.Backup);
+
+        var backupOnly = cat.AgentSessions.Single(a => a.Name == "model-io-sess_backup-only");
+        Assert.False(backupOnly.Live);
+        Assert.True(backupOnly.Backup);
+        Assert.True(backupOnly.Size > 0, "a backup-only file supplies its own size");
+
+        Assert.Equal(cat.AgentSessions.OrderByDescending(a => a.MtimeMs).Select(a => a.Rel).ToList(),
+                     cat.AgentSessions.Select(a => a.Rel).ToList());
+    }
+
+    [Fact]
+    public async Task AgentSessions_RoundTripThroughJson_AndMarkdownSection()
+    {
+        // agent_sessions must survive sessions_catalog.json -> LoadAsync, and the markdown must
+        // carry the agent section so a person reading the file sees them at all.
+        var live = Path.Combine(_tmp, "pi-live");
+        Directory.CreateDirectory(live);
+        File.WriteAllText(Path.Combine(live, "session-one.jsonl"), "{}\n");
+
+        var options = MakeOptions();
+        options.Agents = new[] { new AgentCatalogSource("pi", live, null) };
+
+        await new CatalogBuilder().BuildAsync(options, null, CancellationToken.None);
+
+        var loaded = await new CatalogBuilder()
+            .LoadAsync(Path.Combine(_outDir, "sessions_catalog.json"), CancellationToken.None);
+        var entry = Assert.Single(loaded.AgentSessions);
+        Assert.Equal("pi", entry.Agent);
+        Assert.True(entry.Live);
+        Assert.False(entry.Backup);
+
+        var md = File.ReadAllText(Path.Combine(_outDir, "sessions_catalog.md"));
+        Assert.Contains("Agent sessions", md);
+        Assert.Contains("session-one", md);
+    }
+
+    [Fact]
+    public async Task AgentSessions_EmptySourcesListNothing_AndAbsentRootsAreQuiet()
+    {
+        // No agents passed lists nothing; a configured agent whose roots do not exist yields no
+        // entries and no error - an absent agent stays quiet, the Optional-store rule.
+        var cat1 = await new CatalogBuilder().BuildAsync(MakeOptions(), null, CancellationToken.None);
+        Assert.Empty(cat1.AgentSessions);
+
+        var options = MakeOptions();
+        options.Agents = new[]
+        {
+            new AgentCatalogSource("codex", Path.Combine(_tmp, "nope"), Path.Combine(_tmp, "also-nope")),
+        };
+        var cat2 = await new CatalogBuilder().BuildAsync(options, null, CancellationToken.None);
+        Assert.Empty(cat2.AgentSessions);
+        Assert.Equal(0, cat2.Counts.AgentSessions);
+    }
 }
