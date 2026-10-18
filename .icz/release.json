@@ -1,0 +1,21 @@
+{
+  "$comment": "How a release of Claude Session Backup is cut, for the IcZ session-close hook (icz-memory release.mjs). While the version in Directory.Build.props has no tag, the hook's copy-and-paste block carries these lines after the session's git add / commit / push. Keep it in step with tools/Release.ps1, README.md (Cutting a release) and .github/workflows/release.yml.",
+  "schema": 1,
+  "name": "Claude Session Backup",
+  "version": { "file": "Directory.Build.props", "regex": "<Version>([^<]+)</Version>" },
+  "branch": "main",
+  "tag": "v{version}",
+  "tag_message": "Claude Session Backup {version}",
+  "require": [
+    { "file": "RELEASE_NOTES.md", "contains": "# Claude Session Backup {version}", "why": "release.yml takes the release body from that heading and falls back to auto-generated notes without it; tools/Release.ps1 refuses to bump without it" }
+  ],
+  "before_tag": [
+    "gh run list -R {gh_repo} -w CI -b {branch} -L 3"
+  ],
+  "notes": [
+    "Tag once CI is green on the pushed commit: release.yml runs no tests, so ci.yml (build, tests, Check-Packaging.ps1, Check-Privacy.ps1) is the only gate on what the tag ships. A run that has not appeared yet is still queued.",
+    "The tag push runs release.yml, which builds everything on a GitHub Windows runner: the version gate (the tag against Directory.Build.props), Package.ps1 (the self-contained zip), Make-Installer.ps1 -SkipPackage (Setup.exe), SHA256SUMS.txt and the GitHub release with the '# Claude Session Backup {version}' section as its notes and the three files attached. Nothing is built here.",
+    "Whether it finished: gh run list -R {gh_repo} -w Release -L 1. A tag the version gate refused made no release: move it (git tag -d {tag}, then git push {remote} :refs/tags/{tag}), land the fix and tag again."
+  ],
+  "next": "add a '# Claude Session Backup {next}' section to RELEASE_NOTES.md and commit it, then powershell -ExecutionPolicy Bypass -File \"{root}/tools/Release.ps1\" -Version {next}"
+}
